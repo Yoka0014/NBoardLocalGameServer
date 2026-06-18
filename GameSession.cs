@@ -1,10 +1,11 @@
-﻿using System.Diagnostics;
-
-using NBoardLocalGameServer.Engine;
+﻿using NBoardLocalGameServer.Engine;
 using NBoardLocalGameServer.Reversi;
+using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace NBoardLocalGameServer
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     internal enum GameSessionMode
     {
         // サーバー側が常に現在の局面と残り時間をGGF形式で送信するモード
@@ -37,7 +38,7 @@ namespace NBoardLocalGameServer
         public GameSessionState State => _state;
         public GameInfo CurrentGameInfo => new(_currentGameInfo);
 
-        public async Task<GameInfo?> Start(CancellationToken cancelToken)
+        public async Task<GameInfo?> Start(CancellationToken ct)
         {
             if (Interlocked.CompareExchange(ref _state, GameSessionState.Playing, GameSessionState.NotStarted) != GameSessionState.NotStarted)
                 throw new InvalidOperationException("Session has already started or terminated");
@@ -64,7 +65,7 @@ namespace NBoardLocalGameServer
                 (currentClock, opponentClock) = (_whiteClock, _blackClock);
             }
 
-            while (!cancelToken.IsCancellationRequested && !pos.IsGameOver)
+            while (!ct.IsCancellationRequested && !pos.IsGameOver)
             {
                 BoardCoordinate moveCoord;
                 var sideToMove = pos.SideToMove;
@@ -114,7 +115,7 @@ namespace NBoardLocalGameServer
                 (currentClock, opponentClock) = (opponentClock, currentClock);
             }
 
-            if (cancelToken.IsCancellationRequested)
+            if (ct.IsCancellationRequested)
                 return null;
 
             if (currentClock?.Status != GameClockStatus.Timeout)

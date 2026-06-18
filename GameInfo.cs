@@ -36,6 +36,17 @@ namespace NBoardLocalGameServer
             Moves.AddRange(other.Moves);
         }
 
+        public Position? TryGenerateFinalPosition()
+        {
+            var pos = RootPosition;
+            foreach(var move in Moves)
+            {
+                if (move.Color != pos.SideToMove || !pos.Update(move.Coord))
+                    return null;
+            }
+            return pos;
+        }
+
         public string ToGGFString()
         {
             var sb = new StringBuilder("(;GM[Othello]PC[");

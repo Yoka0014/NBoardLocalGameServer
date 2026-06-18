@@ -42,7 +42,13 @@ namespace NBoardLocalGameServer.Engine
             var engine = new NBoardEngine(process);
             engine.SendCommand($"nboard {NBoardVersion}");
 
-            return await engine.CheckConnectionAsync() ? engine : throw new EngineConnectionException(process.Info);
+            if(!await engine.CheckConnectionAsync())
+                throw new EngineConnectionException(process.Info);
+
+            foreach (var cmd in initalCommands)
+                engine.SendCommand(cmd);
+
+            return engine;
         }
 
         public bool TryQuit(int timeoutMs)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NBoardLocalGameServer
@@ -12,6 +13,8 @@ namespace NBoardLocalGameServer
     /// <param name="label"></param>
     internal class PlayerStats(string label)
     {
+        static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+
         [JsonPropertyOrder(0)]
         public string Label { get; } = label;
 

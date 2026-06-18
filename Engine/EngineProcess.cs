@@ -136,7 +136,7 @@ namespace NBoardLocalGameServer.Engine
         }
 
         void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
-            => Console.Error.WriteLine($"Engine Error Info: {e.Data} (Name: {Name}, PID: {Id})");
+            => Console.Error.WriteLine($"Engine Error Info (Name: {Name}, PID: {Id}): {e.Data}");
 
         public void Dispose() => _process?.Dispose();
     }
