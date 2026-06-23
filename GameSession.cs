@@ -1,7 +1,10 @@
 ﻿using NBoardLocalGameServer.Engine;
 using NBoardLocalGameServer.Reversi;
+using System;
 using System.Diagnostics;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NBoardLocalGameServer
 {
@@ -119,7 +122,7 @@ namespace NBoardLocalGameServer
                 return null;
 
             if (currentClock?.Status != GameClockStatus.Timeout)
-                _currentGameInfo.Result = new GameResult(pos.Winner, pos.GetScoreFrom(pos.Winner)!.Value);
+                _currentGameInfo.Result = new GameResult(pos.Winner, pos.Winner != DiscColor.Null ? pos.GetScoreFrom(pos.Winner)!.Value : 0);
             else
                 _currentGameInfo.Result = new GameResult(ReversiTypes.ToOpponent(pos.SideToMove), Constants.MaxScore, GameEndStatus.Timeout);
 

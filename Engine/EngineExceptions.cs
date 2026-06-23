@@ -1,7 +1,5 @@
 ﻿using NBoardLocalGameServer.Reversi;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace NBoardLocalGameServer.Engine
 {
@@ -12,7 +10,7 @@ namespace NBoardLocalGameServer.Engine
 
         static string CreateBaseMessage(string msg, EngineProcessInfo? info, Exception? innerEx)
         {
-            var engineDetail = (info is not null) ? $"{msg}\nEngine Detail: {info.Name} (PID: {info.Pid}) at \"{info.Path}\"" : string.Empty;
+            var engineDetail = (info is not null) ? $"Engine Detail: {info.Name} (PID: {info.Pid}) at \"{info.Path}\"" : string.Empty;
             var innerExMsg = (innerEx is not null) ? $"Inner Exception Message: {innerEx?.Message}\nInner Stack Trace:\n{innerEx?.StackTrace}" : string.Empty;
             return $"{msg}\n{engineDetail}\n{innerExMsg}";
         }

@@ -1,7 +1,8 @@
-﻿using NBoardLocalGameServer.Reversi;
-using System;
+﻿using System;
+using System.IO;
 using System.Collections.Generic;
-using System.Text;
+
+using NBoardLocalGameServer.Reversi;
 
 namespace NBoardLocalGameServer
 {
@@ -43,7 +44,7 @@ namespace NBoardLocalGameServer
 
         OpeningBook() => _book = [];
 
-        public Position GetPosition() => _book[_loc++ % _book.Length];
+        public Position GetPosition() => new(_book[_loc++ % _book.Length]);
         public void Shuffle() => Shuffle(Random.Shared);
         public void Shuffle(Random rand) => rand.Shuffle(_book);
 

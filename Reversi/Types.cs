@@ -1,5 +1,4 @@
-﻿using Microsoft.VisualBasic;
-using System;
+﻿using System;
 
 namespace NBoardLocalGameServer.Reversi
 {
@@ -71,7 +70,7 @@ namespace NBoardLocalGameServer.Reversi
         public static BoardCoordinate ParseCoordinate(ReadOnlySpan<char> str)
         {
             str = str.Trim();
-            if (str.CompareTo("PA", StringComparison.OrdinalIgnoreCase) == 0)
+            if (str.StartsWith("PA", StringComparison.OrdinalIgnoreCase))
                 return BoardCoordinate.PA;
 
             Span<char> lstr = stackalloc char[str.Length];

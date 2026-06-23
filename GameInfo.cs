@@ -96,7 +96,7 @@ namespace NBoardLocalGameServer
             else
                 sign = (score > 0) ? "+" : "-";
 
-            return $"{sign}{score}{flag}";
+            return $"{sign}{Math.Abs(score)}{flag}";
         }
     }
 }

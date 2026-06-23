@@ -1,5 +1,8 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace NBoardLocalGameServer.Engine
 {
@@ -136,7 +139,7 @@ namespace NBoardLocalGameServer.Engine
         }
 
         void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
-            => Console.Error.WriteLine($"Engine Error Info (Name: {Name}, PID: {Id}): {e.Data}");
+            => Console.Error.WriteLine($"Engine Error Info (Name: {(_process.HasExited ? null : Name)}, PID: {(_process.HasExited ? null : Id)}): {e.Data}");
 
         public void Dispose() => _process?.Dispose();
     }

@@ -1,4 +1,8 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using NBoardLocalGameServer.Reversi;
 
 namespace NBoardLocalGameServer.Engine
@@ -57,7 +61,7 @@ namespace NBoardLocalGameServer.Engine
             _thinkCts?.Cancel();
             SendCommand("quit");
             _process.WaitForExit(timeoutMs);
-            return !_process.HasExited;
+            return _process.HasExited;
         }
 
         public bool TryQuitForcely(int timeoutMs)
@@ -65,7 +69,7 @@ namespace NBoardLocalGameServer.Engine
             _thinkCts?.Cancel();
             _process.Kill();
             _process.WaitForExit(timeoutMs);
-            return !_process.HasExited;
+            return _process.HasExited;
         }
 
         public void SetDepth(int depth) => SendCommand($"set depth {depth}");

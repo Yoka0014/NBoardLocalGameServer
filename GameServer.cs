@@ -1,14 +1,14 @@
-﻿using NBoardLocalGameServer.Engine;
-using NBoardLocalGameServer.Reversi;
-using System;
+﻿using System;
+using System.IO;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.Runtime.CompilerServices;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Channels;
+using System.Threading;
+using System.Threading.Tasks;
+
+using NBoardLocalGameServer.Engine;
+using NBoardLocalGameServer.Reversi;
 
 namespace NBoardLocalGameServer
 {
@@ -57,7 +57,7 @@ namespace NBoardLocalGameServer
             Console.WriteLine($"The number of sessions: {_maxSessions}");
 
             Player[]? players = null;
-            OpeningBook? book = null;
+            OpeningBook? book;
             try
             {
                 players = await CreatePlayersAsync();
@@ -96,11 +96,12 @@ namespace NBoardLocalGameServer
             _cts = new CancellationTokenSource();
             var games = new List<Task<GameInfo?>>();
             Position? pos = null;
-            using var gameRecordsSw = new StreamWriter(_gameRecordPath, File.Exists(_gameRecordPath));
+            using var gameRecordsSw = string.IsNullOrEmpty(_gameRecordPath) ? StreamWriter.Null : new StreamWriter(_gameRecordPath, File.Exists(_gameRecordPath));
             var serializerOptions = new JsonSerializerOptions { WriteIndented = true };
 
             try
             {
+                int firstIdx = 0, secondIdx = 1;
                 for (var i = 0; i < numGames; i++)
                 {
                     if (games.Count == SaveChunk)
@@ -113,10 +114,10 @@ namespace NBoardLocalGameServer
                     if (i % 2 == 0 || !_config.UseSamePositionWhenSwapPlayer)
                         pos = book.NumPositions != 0 ? book.GetPosition() : new Position();
 
-                    games.Add(StartSession(i, pos!, players[0], players[1], _cts.Token));
+                    games.Add(StartSession(i, new Position(pos!), players, players[firstIdx], players[secondIdx], _cts.Token));
 
                     if (_config.SwapPlayer)
-                        (players[0], players[1]) = (players[1], players[0]);
+                        (firstIdx, secondIdx) = (secondIdx, firstIdx);
                 }
 
                 SaveGameRecords(gameRecordsSw, await Task.WhenAll(games));
@@ -128,7 +129,7 @@ namespace NBoardLocalGameServer
             }
         }
 
-        async Task<GameInfo?> StartSession(int gameID, Position pos, Player blackPlayer, Player whitePlayer, CancellationToken ct)
+        async Task<GameInfo?> StartSession(int gameID, Position pos, Player[] players, Player blackPlayer, Player whitePlayer, CancellationToken ct)
         {
             GameSession? session = null;
             NBoardEngine? blackEngine = null, whiteEngine = null;
@@ -137,8 +138,18 @@ namespace NBoardLocalGameServer
 
             try
             {
-                blackEngine = await blackPlayer.EnginePool.RentAsync(ct);
-                whiteEngine = await whitePlayer.EnginePool.RentAsync(ct);
+                // 必ずplayers[0] -> players[1]の順で借りるようにする．
+                // この制約を設けないとデッドロックが起きる．
+                if (blackPlayer == players[0])
+                {
+                    blackEngine = await blackPlayer.EnginePool.RentAsync(ct);
+                    whiteEngine = await whitePlayer.EnginePool.RentAsync(ct);
+                }
+                else
+                {
+                    whiteEngine = await whitePlayer.EnginePool.RentAsync(ct);
+                    blackEngine = await blackPlayer.EnginePool.RentAsync(ct);
+                }
 
                 sb.AppendLine($"[Start Game {gameID}]");
 
@@ -207,6 +218,14 @@ namespace NBoardLocalGameServer
                                 whitePlayer.Stats.DrawCount[(int)DiscColor.White]++;
                         }
 
+                        for (var i = 0; i < 2; i++)
+                        {
+                            sb.Append($"{players[i].Name} v.s. {players[1 - i].Name}: ");
+                            sb.Append(players[i].Stats.TotalWinCount).Append(" wins ");
+                            sb.Append(players[i].Stats.TotalDrawCount).Append(" draws ");
+                            sb.Append(players[i].Stats.TotalLossCount).Append(" losses (WinRate: ");
+                            sb.Append(players[i].Stats.TotalWinRate * 100.0).AppendLine("%)");
+                        }
                     }
 
                     Console.WriteLine(sb.ToString());
@@ -222,7 +241,7 @@ namespace NBoardLocalGameServer
                 sb.AppendLine($"Detail: {ex.Message}");
                 sb.AppendLine("Current position:");
                 sb.AppendLine(currentGame?.TryGenerateFinalPosition()?.ToString());
-                sb.AppendLine($"Move history: {string.Join(string.Empty, from move in currentGame?.Moves select move.ToString())}");
+                sb.AppendLine($"Move history: {string.Join(string.Empty, from move in currentGame?.Moves select move.Coord.ToString())}");
                 Console.Error.WriteLine(sb.ToString());
             }
             finally
@@ -268,6 +287,19 @@ namespace NBoardLocalGameServer
             return players;
         }
 
+        void SaveGameRecords(StreamWriter sw, GameInfo?[] games)
+        {
+            if (string.IsNullOrEmpty(_gameRecordPath))
+                return;
+
+            foreach (var game in games)
+            {
+                if (game is not null)
+                    sw.WriteLine(game.ToGGFString());
+            }
+            sw.Flush();
+        }
+
         static OpeningBook? LoadOpeningBook(string path)
         {
             if (string.IsNullOrEmpty(path))
@@ -290,16 +322,6 @@ namespace NBoardLocalGameServer
                 Console.Error.WriteLine($"Error: Failed to load an opening book. Detail: {ex.Message}");
                 return null;
             }
-        }
-
-        static void SaveGameRecords(StreamWriter sw, GameInfo?[] games)
-        {
-            foreach(var game in games)
-            {
-                if (game is not null)
-                    sw.WriteLine(game.ToGGFString());
-            }
-            sw.Flush();
         }
     }
 }
