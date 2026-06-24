@@ -11,8 +11,11 @@ namespace NBoardLocalGameServer
     {
         static async Task<int> Main(string[] args)
         {
+            DebugOut.SetOutFile("log.txt", autoFlush: false);
             var cmd = InitCommand();
-            return await cmd.Parse(args).InvokeAsync();
+            var exitCode = await cmd.Parse(args).InvokeAsync();
+            DebugOut.Close();
+            return exitCode;
         }
 
         static RootCommand InitCommand()

@@ -80,7 +80,7 @@ namespace NBoardLocalGameServer.Engine
                 response.CompletionSource.SetResult(string.Empty);
                 _process.StandardInput.WriteLine(cmd);
 
-                Debug.WriteLine($"Server -> {Name}(PID: {Id}): {cmd}");
+                DebugOut.WriteLine($"Server -> {Name}(PID: {Id}): {cmd}");
 
                 return response;
             }
@@ -90,7 +90,7 @@ namespace NBoardLocalGameServer.Engine
 
             _process.StandardInput.WriteLine(cmd);
 
-            Debug.WriteLine($"Server -> {Name}(PID: {Id}): {cmd}");
+            DebugOut.WriteLine($"Server -> {Name}(PID: {Id}): {cmd}");
 
             return response;
         }
@@ -99,7 +99,7 @@ namespace NBoardLocalGameServer.Engine
         {
             if (e.Data is null) return;
 
-            Debug.WriteLine($"{Name}(PID: {Id}) -> Server: {e.Data}");
+            DebugOut.WriteLine($"{Name}(PID: {Id}) -> Server: {e.Data}");
 
             EngineResponse? response = null;
             lock (_waitingResponseList)
@@ -139,7 +139,11 @@ namespace NBoardLocalGameServer.Engine
         }
 
         void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
-            => Console.Error.WriteLine($"Engine Error Info (Name: {(_process.HasExited ? null : Name)}, PID: {(_process.HasExited ? null : Id)}): {e.Data}");
+        {
+            var msg = $"Engine Error Info (Name: {(_process.HasExited ? null : Name)}, PID: {(_process.HasExited ? null : Id)}): {e.Data}";
+            Console.Error.WriteLine(msg);
+            DebugOut.WriteLine(msg);
+        }
 
         public void Dispose() => _process?.Dispose();
     }

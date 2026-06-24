@@ -10,7 +10,8 @@ namespace NBoardLocalGameServer.Engine
     internal partial class NBoardEngine
     {
         const int NBoardVersion = 1;
-        const int PingTimeoutMs = 10000;
+        const int InitialPingTimeoutMs = 30000;
+        const int PingTimeoutMs = 1000;
 
         [GeneratedRegex(@"^\s*===")]
         private static partial Regex GoResponseRegex();
@@ -46,7 +47,7 @@ namespace NBoardLocalGameServer.Engine
             var engine = new NBoardEngine(process);
             engine.SendCommand($"nboard {NBoardVersion}");
 
-            if(!await engine.CheckConnectionAsync())
+            if(!await engine.CheckConnectionAsync(InitialPingTimeoutMs))
                 throw new EngineConnectionException(process.Info);
 
             foreach (var cmd in initalCommands)
