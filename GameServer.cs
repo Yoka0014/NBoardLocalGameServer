@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,6 +13,18 @@ using NBoardLocalGameServer.Reversi;
 
 namespace NBoardLocalGameServer
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    internal enum MatchMode
+    {
+        // 1局ごとに勝敗を決める通常モード.
+        Normal,
+
+        // GGSのSynchro Matchに準拠したモード.
+        // 同一開始局面に対し手番を入れ替えた2局を1マッチとして扱い,
+        // 2局合計の石差でマッチの勝敗を決める.
+        Synchro
+    }
+
     internal class GameServerConfig
     {
         static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
@@ -19,13 +32,20 @@ namespace NBoardLocalGameServer
         public GameSessionMode SessionMode { get; init; } = GameSessionMode.StatefulEngine;
 
         /// <summary>
-        /// 1ゲームごとに手番を入れ替えるか
+        /// どの対局ルールで進行するか.
+        /// </summary>
+        public MatchMode MatchMode { get; init; } = MatchMode.Normal;
+
+        /// <summary>
+        /// 1ゲームごとに手番を入れ替えるか.
+        /// MatchModeがSynchroの場合は常に手番を入れ替えるため, この設定値は無視される.
         /// </summary>
         public bool SwapPlayer { get; init; } = true;
 
         /// <summary>
         /// 手番を入れ替えたとき, 手番入れ替える前と同じ局面で再対局するか, もしくは別の局面を用意するか.
         /// SwapPlayerがtrueのときのみ有効.
+        /// MatchModeがSynchroの場合は常に同じ局面で再対局するため, この設定値は無視される.
         /// </summary>
         public bool UseSamePositionWhenSwapPlayer { get; init; } = true;
 
@@ -52,7 +72,7 @@ namespace NBoardLocalGameServer
         readonly int _maxSessions = maxSessions;
         CancellationTokenSource? _cts;
 
-        public async Task RunAsync(int numGames) 
+        public async Task RunAsync(int numMatches)
         {
             Console.WriteLine($"The number of sessions: {_maxSessions}");
 
@@ -77,7 +97,7 @@ namespace NBoardLocalGameServer
                     Console.WriteLine("done");
                 }
 
-                await MainloopAsync(numGames, players, book);
+                await MainloopAsync(numMatches, players, book);
 
             }
             finally
@@ -89,15 +109,18 @@ namespace NBoardLocalGameServer
 
         public void RequestStop() => _cts?.Cancel();
 
-        async Task MainloopAsync(int numGames, Player[] players, OpeningBook book)
+        async Task MainloopAsync(int numMatches, Player[] players, OpeningBook book)
         {
             const int SaveChunk = 100;
+
+            var isSynchro = _config.MatchMode == MatchMode.Synchro;
+            var numGames = numMatches * (isSynchro ? 2 : 1);
+            var matchStats = isSynchro ? new MatchStats(players[0].Name, players[1].Name) : null;
 
             _cts = new CancellationTokenSource();
             var games = new List<Task<GameInfo?>>();
             Position? pos = null;
             using var gameRecordsSw = string.IsNullOrEmpty(_gameRecordPath) ? StreamWriter.Null : new StreamWriter(_gameRecordPath, File.Exists(_gameRecordPath));
-            var serializerOptions = new JsonSerializerOptions { WriteIndented = true };
 
             try
             {
@@ -106,28 +129,78 @@ namespace NBoardLocalGameServer
                 {
                     if (games.Count == SaveChunk)
                     {
-                        SaveGameRecords(gameRecordsSw, await Task.WhenAll(games));
-                        File.WriteAllText(_playerStatsPath, JsonSerializer.Serialize(from p in players select p.Stats, serializerOptions));
+                        var results = await Task.WhenAll(games);
+                        SaveGameRecords(gameRecordsSw, results);
+                        if (matchStats is not null)
+                            UpdateMatchStats(matchStats, results);
+                        SaveStats(players, matchStats);
                         games.Clear();
                     }
 
-                    if (i % 2 == 0 || !_config.UseSamePositionWhenSwapPlayer)
+                    // Synchroモードでは, SwapPlayer/UseSamePositionWhenSwapPlayerの値に関わらず
+                    // 常に「同一局面・手番反転ペア」で対局させる.
+                    var forcePairing = isSynchro || (_config.SwapPlayer && _config.UseSamePositionWhenSwapPlayer);
+                    if (i % 2 == 0 || !forcePairing)
                         pos = book.NumPositions != 0 ? book.GetPosition() : new Position();
 
                     games.Add(StartSession(i, new Position(pos!), players, players[firstIdx], players[secondIdx], _cts.Token));
 
-                    if (_config.SwapPlayer)
+                    if (isSynchro || _config.SwapPlayer)
                         (firstIdx, secondIdx) = (secondIdx, firstIdx);
                 }
 
-                SaveGameRecords(gameRecordsSw, await Task.WhenAll(games));
-                File.WriteAllText(_playerStatsPath, JsonSerializer.Serialize(from p in players select p.Stats, serializerOptions));
+                var finalResults = await Task.WhenAll(games);
+                SaveGameRecords(gameRecordsSw, finalResults);
+                if (matchStats is not null)
+                    UpdateMatchStats(matchStats, finalResults);
+                SaveStats(players, matchStats);
             }
             catch (OperationCanceledException)
             {
                 Console.WriteLine("Info: Game sessions were canceled by user interruption.");
             }
         }
+
+        void SaveStats(Player[] players, MatchStats? matchStats)
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            object output = matchStats is not null
+                ? new SynchroStatsOutput([.. from p in players select p.Stats], matchStats)
+                : (from p in players select p.Stats).ToArray();
+            File.WriteAllText(_playerStatsPath, JsonSerializer.Serialize(output, options));
+        }
+
+        /// <summary>
+        /// 2局を1組として, 合計石差でマッチの勝敗/引き分けを集計する.
+        /// MainloopAsyncの逐次ループからのみ呼ばれる(並行呼び出しはない)ためロック不要.
+        /// </summary>
+        static void UpdateMatchStats(MatchStats matchStats, GameInfo?[] results)
+        {
+            for (var k = 0; k + 1 < results.Length; k += 2)
+            {
+                var gameA = results[k];     // 偶数インデックス: players[0] = Black
+                var gameB = results[k + 1]; // 奇数インデックス: players[0] = White
+
+                if (gameA?.Result is null || gameB?.Result is null)
+                {
+                    matchStats.IncompleteMatchCount++;
+                    continue;
+                }
+
+                var net = NetMargin(gameA.Result, DiscColor.Black) + NetMargin(gameB.Result, DiscColor.White);
+                if (net > 0)
+                    matchStats.MatchWinCount[0]++;
+                else if (net < 0)
+                    matchStats.MatchWinCount[1]++;
+                else
+                    matchStats.MatchDrawCount++;
+
+                matchStats.TotalNetScoreForPlayer0 += net;
+            }
+        }
+
+        static int NetMargin(GameResult res, DiscColor colorPlayedByPlayer0)
+            => res.Winner == DiscColor.Null ? 0 : (res.Winner == colorPlayedByPlayer0 ? res.ScoreFromWinner : -res.ScoreFromWinner);
 
         async Task<GameInfo?> StartSession(int gameID, Position pos, Player[] players, Player blackPlayer, Player whitePlayer, CancellationToken ct)
         {

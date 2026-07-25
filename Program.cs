@@ -31,12 +31,16 @@ namespace NBoardLocalGameServer
             var secondPlayerOption = new Option<string>("--second") { Description = "Path to the second player's configuration JSON file.", Required = true };
             configOption.Validators.Add(CheckFileExistance);
 
-            var numGamesOption = new Option<int>("--games", "-ng") { Description = "The number of games.", Required = true };
-            numGamesOption.Validators.Add(result =>
+            var numMatchesOption = new Option<int>("--matches", "-nm")
+            {
+                Description = "The number of matches (Normal mode: 1 match = 1 game; Synchro mode: 1 match = 2 games).",
+                Required = true
+            };
+            numMatchesOption.Validators.Add(result =>
             {
                 if (result.GetValueOrDefault<int>() <= 0)
-                    result.AddError("The number of games must be positive.");
-            }); 
+                    result.AddError("The number of matches must be positive.");
+            });
 
             var numSessionsOption = new Option<int>("--sessions", "-ns")
             {
@@ -67,7 +71,7 @@ namespace NBoardLocalGameServer
             rootCmd.Options.Add(configOption);
             rootCmd.Options.Add(firstPlayerOption);
             rootCmd.Options.Add(secondPlayerOption);
-            rootCmd.Options.Add(numGamesOption);
+            rootCmd.Options.Add(numMatchesOption);
             rootCmd.Options.Add(numSessionsOption);
             rootCmd.Options.Add(gameRecordOption);
             rootCmd.Options.Add(playerStatsOption);
@@ -92,14 +96,14 @@ namespace NBoardLocalGameServer
                 if (secondPlayerConfig is null)
                     return;
 
-                var numGames = parseResult.GetValue(numGamesOption);
+                var numMatches = parseResult.GetValue(numMatchesOption);
                 var numSessions = parseResult.GetValue(numSessionsOption);
 
                 var gameRecordPath = parseResult.GetValue(gameRecordOption);
                 var playerStatsPath = parseResult.GetValue(playerStatsOption);
 
                 var server = new GameServer(serverConfig, firstPlayerConfig, secondPlayerConfig, gameRecordPath!, playerStatsPath!, numSessions);
-                await server.RunAsync(numGames);
+                await server.RunAsync(numMatches);
             });
 
             return rootCmd;
