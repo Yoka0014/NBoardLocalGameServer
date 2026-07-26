@@ -8,5 +8,10 @@ window.WAKE_CONFIG = {
   // Only needed if you set SHARED_TOKEN on the Lambda. Note this is visible to anyone viewing this
   // page's source -- it's a deterrent against random scanners, not real access control. Real safety
   // comes from the Lambda's IAM role only being able to Start/Describe this one instance.
-  token: ""
+  token: "",
+
+  // The instance's Tailscale IP and the app's port, so the page can link straight to the app once
+  // it reports "running". Only reachable from devices enrolled in your own Tailscale network.
+  tailscaleIp: "",
+  port: 5000
 };

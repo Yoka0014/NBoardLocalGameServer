@@ -85,6 +85,11 @@ function wakeUrl(action){
   if(cfg.token) url.searchParams.set('token', cfg.token);
   return url.toString();
 }
+function appLink(){
+  const cfg = window.WAKE_CONFIG || {};
+  if(!cfg.tailscaleIp) return null;
+  return `http://${cfg.tailscaleIp}:${cfg.port || 5000}`;
+}
 async function refreshWakeStatus(){
   const url = wakeUrl('status');
   if(!url){ document.getElementById('wakeBox').style.display='none'; return; }
@@ -95,9 +100,12 @@ async function refreshWakeStatus(){
     const res = await fetch(url);
     const data = await res.json();
     const running = data.state === 'running';
+    const link = appLink();
     statusEl.className = 'wake-status' + (running ? ' running' : '');
     statusEl.innerHTML = `<span class="dot"></span>Server is ${escapeHtml(data.state || 'unknown')}` +
-      (running ? ' — run wake-and-connect.ps1 to open it.' : '.');
+      (running
+        ? (link ? ` — <a href="${escapeHtml(link)}">open the app</a> (only reachable from devices on your Tailscale network).` : ' — connect via Tailscale to open it.')
+        : '.');
     document.getElementById('wakeBtn').disabled = running;
   }catch(e){
     statusEl.innerHTML = `<span class="dot"></span>Could not check server state: ${escapeHtml(e.message)}`;
@@ -111,7 +119,7 @@ async function wakeServer(){
   btn.textContent = 'Starting…';
   try{
     await fetch(url);
-    document.getElementById('wakeStatus').innerHTML = '<span class="dot"></span>Start requested — this can take a minute or two. Once running, run wake-and-connect.ps1 to open it.';
+    document.getElementById('wakeStatus').innerHTML = '<span class="dot"></span>Start requested — this can take a minute or two. Reload this page once it\'s up to get a direct link.';
     setTimeout(refreshWakeStatus, 15000);
   }catch(e){
     document.getElementById('wakeStatus').textContent = 'Failed to request start: ' + e.message;
