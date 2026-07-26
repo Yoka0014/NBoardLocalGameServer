@@ -80,7 +80,7 @@ namespace NBoardLocalGameServer
                 }
                 catch (OperationCanceledException)
                 {
-                    if (currentClock?.Status != GameClockStatus.Timeout)
+                    if (currentClock?.IsTimedOut != true)
                     {
                         Interlocked.Exchange(ref _state, GameSessionState.Cancelled);
                         return null;
@@ -103,7 +103,7 @@ namespace NBoardLocalGameServer
                     throw _lastConnectionException;
                 }
 
-                if (currentClock?.Status == GameClockStatus.Timeout)
+                if (currentClock?.IsTimedOut == true)
                     break;
 
                 if (!pos.Update(moveCoord))
@@ -121,7 +121,7 @@ namespace NBoardLocalGameServer
             if (ct.IsCancellationRequested)
                 return null;
 
-            if (currentClock?.Status != GameClockStatus.Timeout)
+            if (currentClock?.IsTimedOut != true)
                 _currentGameInfo.Result = new GameResult(pos.Winner, pos.Winner != DiscColor.Null ? pos.GetScoreFrom(pos.Winner)!.Value : 0);
             else
                 _currentGameInfo.Result = new GameResult(ReversiTypes.ToOpponent(pos.SideToMove), Constants.MaxScore, GameEndStatus.Timeout);
@@ -140,7 +140,7 @@ namespace NBoardLocalGameServer
 
         async void GameClock_StatusChanged(object? sender, GameClockStatus e)
         {
-            if (e != GameClockStatus.Timeout)
+            if ((e & GameClockStatus.Timeout) == 0)
                 return;
 
             try

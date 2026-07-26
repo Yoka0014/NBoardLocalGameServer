@@ -15,6 +15,11 @@ namespace NBoardLocalGameServer
             Out.Close();
             Out = new StreamWriter(path) { AutoFlush = autoFlush };
             AppDomain.CurrentDomain.ProcessExit += (_, _) => Out.Close();
+
+            // With autoFlush:false, buffered lines are otherwise lost on a crash — ProcessExit does not
+            // fire for an unhandled-exception termination, only for a graceful one. Flushing here means
+            // the log up to the moment of the crash is still on disk for post-mortem debugging.
+            AppDomain.CurrentDomain.UnhandledException += (_, _) => Out.Flush();
         }
 
         public static void WriteLine(object obj)

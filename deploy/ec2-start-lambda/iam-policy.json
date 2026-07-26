@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StartOnlyThisOneInstance",
+      "Effect": "Allow",
+      "Action": "ec2:StartInstances",
+      "Resource": "arn:aws:ec2:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT_ID:instance/REPLACE_WITH_YOUR_INSTANCE_ID"
+    },
+    {
+      "Sid": "DescribeInstancesForStatusCheck",
+      "Effect": "Allow",
+      "Action": "ec2:DescribeInstances",
+      "Resource": "*"
+    }
+  ]
+}

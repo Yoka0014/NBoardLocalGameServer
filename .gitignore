@@ -365,3 +365,6 @@ FodyWeavers.xsd
 TestWorkDir/*
 /Properties
 CLAUDE.md
+/data/
+/log.txt
+/deploy/wake-and-connect.config.json

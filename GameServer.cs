@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -63,14 +64,52 @@ namespace NBoardLocalGameServer
         public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
     }
 
-    internal class GameServer(GameServerConfig config, PlayerConfig playerConfig0, PlayerConfig playerConfig1, string gameRecordPath, string playerStatsPath, int maxSessions)
+    internal class GameServer(GameServerConfig config, PlayerConfig playerConfig0, PlayerConfig playerConfig1, string gameRecordPath, string playerStatsPath, int maxSessions, GameClockConfig? player0Clock = null, GameClockConfig? player1Clock = null)
     {
         readonly GameServerConfig _config = config;
         readonly PlayerConfig[] _playerConfigs = [playerConfig0, playerConfig1];
+        readonly GameClockConfig?[] _clockConfigs = [player0Clock, player1Clock];
         readonly string _gameRecordPath = gameRecordPath;
         readonly string _playerStatsPath = playerStatsPath;
         readonly int _maxSessions = maxSessions;
+        readonly ConcurrentDictionary<int, GameSession> _activeSessions = new();
+        int _completedGameCount;
         CancellationTokenSource? _cts;
+
+        /// <summary>Total games this run will play (numMatches * (Synchro ? 2 : 1)). 0 until MainloopAsync starts.</summary>
+        public int TotalGameCount { get; private set; }
+
+        /// <summary>
+        /// The engine-pool size (--sessions). At most this many games can be in flight at once, which
+        /// callers can use to derive a stable "slot" identity for a game (gameID % MaxSessions is unique
+        /// among concurrently active games, since more than MaxSessions of them can never overlap).
+        /// </summary>
+        public int MaxSessions => _maxSessions;
+
+        /// <summary>
+        /// True once RequestStop() has actually taken effect (MainloopAsync observed the cancellation).
+        /// Distinguishes a deliberately stopped run from one that finished all its games normally —
+        /// RunAsync returns without throwing in both cases, so callers need this to tell them apart.
+        /// </summary>
+        public bool WasCancelled { get; private set; }
+
+        /// <summary>Games whose StartSession has returned (success, cancel, or engine error) — live-readable while RunAsync runs.</summary>
+        public int CompletedGameCount => _completedGameCount;
+
+        /// <summary>
+        /// True if CreatePlayersAsync or opening-book loading failed and RunAsync returned early without
+        /// playing anything. RunAsync otherwise returns normally in this case (just logs to the console),
+        /// so external callers (e.g. a web queue runner) need this to distinguish that from "played 0
+        /// games because numMatches was 0".
+        /// </summary>
+        public bool FailedToStart { get; private set; }
+
+        /// <summary>
+        /// Currently in-flight sessions, keyed by the MainloopAsync loop's gameID. Safe to enumerate/poll
+        /// from another thread — GameSession.CurrentGameInfo already returns an independent deep copy
+        /// per call.
+        /// </summary>
+        public IReadOnlyDictionary<int, GameSession> ActiveSessions => _activeSessions;
 
         public async Task RunAsync(int numMatches)
         {
@@ -83,12 +122,18 @@ namespace NBoardLocalGameServer
                 players = await CreatePlayersAsync();
 
                 if (players is null)
+                {
+                    FailedToStart = true;
                     return;
+                }
 
                 book = LoadOpeningBook(_config.OpeningBookPath);
 
                 if (book is null)
+                {
+                    FailedToStart = true;
                     return;
+                }
 
                 if (_config.ShuffleBook)
                 {
@@ -115,6 +160,7 @@ namespace NBoardLocalGameServer
 
             var isSynchro = _config.MatchMode == MatchMode.Synchro;
             var numGames = numMatches * (isSynchro ? 2 : 1);
+            TotalGameCount = numGames;
             var matchStats = isSynchro ? new MatchStats(players[0].Name, players[1].Name) : null;
 
             _cts = new CancellationTokenSource();
@@ -157,6 +203,7 @@ namespace NBoardLocalGameServer
             }
             catch (OperationCanceledException)
             {
+                WasCancelled = true;
                 Console.WriteLine("Info: Game sessions were canceled by user interruption.");
             }
         }
@@ -234,8 +281,13 @@ namespace NBoardLocalGameServer
 
                 Console.WriteLine(sb.ToString());
 
-                var gameInfo = new GameInfo(blackPlayer.Name, whitePlayer.Name, pos);
+                var gameInfo = new GameInfo(blackPlayer.Name, whitePlayer.Name, pos)
+                {
+                    BlackGameClock = blackPlayer == players[0] ? _clockConfigs[0] : _clockConfigs[1],
+                    WhiteGameClock = whitePlayer == players[0] ? _clockConfigs[0] : _clockConfigs[1]
+                };
                 session = new GameSession(_config.SessionMode, blackEngine, whiteEngine, gameInfo);
+                _activeSessions[gameID] = session;
 
                 resultedGame = await session.Start(ct);
 
@@ -319,6 +371,9 @@ namespace NBoardLocalGameServer
             }
             finally
             {
+                _activeSessions.TryRemove(gameID, out _);
+                Interlocked.Increment(ref _completedGameCount);
+
                 if(blackEngine is not null)
                     blackPlayer.EnginePool.Return(blackEngine);
 

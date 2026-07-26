@@ -43,9 +43,11 @@ namespace NBoardLocalGameServer.Engine
 
         public static EngineProcess Start(string path, string args = "", string workDir = "")
         {
+            // .NETのProcess.Startは，Windows環境でスラッシュ区切りの相対パスをFileNameに渡すと，
+            // ファイルが実在してもプロセスを見つけられないことがあるため，絶対パスに変換しておく．
             var psi = new ProcessStartInfo
             {
-                FileName = path,
+                FileName = System.IO.Path.GetFullPath(path),
                 Arguments = args,
                 CreateNoWindow = true,
                 UseShellExecute = false,
@@ -55,7 +57,7 @@ namespace NBoardLocalGameServer.Engine
             };
 
             if (workDir != string.Empty)
-                psi.WorkingDirectory = workDir;
+                psi.WorkingDirectory = System.IO.Path.GetFullPath(workDir);
 
             var process = Process.Start(psi) ?? throw new UnreachableException("Process.Start returned null despite UseShellExecute being false.");
             return new EngineProcess(process);

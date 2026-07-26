@@ -1,0 +1,1544 @@
+<meta charset="utf-8">
+<title>NBoard Console — Match Server</title>
+<style>
+  :root{
+    --bg:#FAFAFA; --panel:#FFFFFF; --panel-2:#F3F4F5; --text:#16181A; --text-dim:#6B7280;
+    --line:#E5E7EA; --accent:#1E8449; --accent-2:#166B3A; --accent-ink:#FFFFFF; --link:#2F6FED;
+    --disc-black:#17181A; --disc-white:#FEFBF3; --disc-edge:#C9C2AC;
+    --success:#1E8449; --success-bg:#E8F5EC; --danger:#C0392B; --danger-bg:#FBEAE8; --warn:#B7791F; --warn-bg:#FBF3DE;
+    --callout-bg:#EFFAF2; --callout-border:#D7EEDD;
+    --sidebar-bg:#FFFFFF; --sidebar-text:#16181A; --sidebar-text-dim:#6B7280; --sidebar-line:#E5E7EA;
+    --sidebar-active:#EAF6EE; --sidebar-hover:#F3F4F5; --sidebar-panel-bg:#F7F8F8; --sidebar-panel-border:#E5E7EA;
+    --shadow: 0 1px 2px rgba(16,24,20,.04);
+    --radius: 5px;
+    --font-display:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:"Cascadia Mono","Consolas","SF Mono","Roboto Mono",monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17181A; --panel:#202224; --panel-2:#28292B; --text:#EDEDEA; --text-dim:#9A9D9C;
+      --line:#38393B; --accent:#3FA968; --accent-2:#57C083; --accent-ink:#04140A; --link:#6EA8FE;
+      --disc-black:#0D0F10; --disc-white:#F2EFE6; --disc-edge:#4A4C4D;
+      --success:#3FA968; --success-bg:#1B3324; --danger:#E28B71; --danger-bg:#3A2620; --warn:#E3C468; --warn-bg:#332D18;
+      --callout-bg:#16231A; --callout-border:#26382C;
+      --sidebar-bg:#111213; --sidebar-text:#EDEDEA; --sidebar-text-dim:#9A9D9C; --sidebar-line:#2A2C2D;
+      --sidebar-active:#1A2A20; --sidebar-hover:rgba(255,255,255,.05); --sidebar-panel-bg:rgba(255,255,255,.04); --sidebar-panel-border:#2A2C2D;
+      --shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#17181A; --panel:#202224; --panel-2:#28292B; --text:#EDEDEA; --text-dim:#9A9D9C;
+    --line:#38393B; --accent:#3FA968; --accent-2:#57C083; --accent-ink:#04140A; --link:#6EA8FE;
+    --disc-black:#0D0F10; --disc-white:#F2EFE6; --disc-edge:#4A4C4D;
+    --success:#3FA968; --success-bg:#1B3324; --danger:#E28B71; --danger-bg:#3A2620; --warn:#E3C468; --warn-bg:#332D18;
+    --callout-bg:#16231A; --callout-border:#26382C;
+    --sidebar-bg:#111213; --sidebar-text:#EDEDEA; --sidebar-text-dim:#9A9D9C; --sidebar-line:#2A2C2D;
+    --sidebar-active:#1A2A20; --sidebar-hover:rgba(255,255,255,.05); --sidebar-panel-bg:rgba(255,255,255,.04); --sidebar-panel-border:#2A2C2D;
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+  :root[data-theme="light"]{
+    --bg:#FAFAFA; --panel:#FFFFFF; --panel-2:#F3F4F5; --text:#16181A; --text-dim:#6B7280;
+    --line:#E5E7EA; --accent:#1E8449; --accent-2:#166B3A; --accent-ink:#FFFFFF; --link:#2F6FED;
+    --disc-black:#17181A; --disc-white:#FEFBF3; --disc-edge:#C9C2AC;
+    --success:#1E8449; --success-bg:#E8F5EC; --danger:#C0392B; --danger-bg:#FBEAE8; --warn:#B7791F; --warn-bg:#FBF3DE;
+    --callout-bg:#EFFAF2; --callout-border:#D7EEDD;
+    --sidebar-bg:#FFFFFF; --sidebar-text:#16181A; --sidebar-text-dim:#6B7280; --sidebar-line:#E5E7EA;
+    --sidebar-active:#EAF6EE; --sidebar-hover:#F3F4F5; --sidebar-panel-bg:#F7F8F8; --sidebar-panel-border:#E5E7EA;
+    --shadow: 0 1px 2px rgba(16,24,20,.04);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--font-body);
+    font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+    min-height:100vh; overflow-x:hidden;
+  }
+  a{color:var(--link); text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  h1,h2,h3{font-family:var(--font-display); font-weight:700; margin:0 0 4px; letter-spacing:-.01em; color:var(--text);}
+  h1{font-size:25px;}
+  h2{font-size:19px;}
+  h3{font-size:15px;}
+  .mono{font-family:var(--font-mono);}
+  button{font-family:inherit; font-size:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit; font-size:inherit; color:var(--text); background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius); padding:7px 9px;}
+  input:focus,select:focus,textarea:focus,button:focus-visible,.navlink:focus-visible,.disc-toggle:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  label{display:block; font-size:12.5px; color:var(--text-dim); margin-bottom:4px; font-weight:600;}
+  .field{margin-bottom:14px;}
+  .field input,.field select,.field textarea{width:100%;}
+  .hint{font-size:11.5px; color:var(--text-dim); margin-top:4px;}
+  fieldset{border:1px dashed var(--line); border-radius:var(--radius); padding:14px; margin:0 0 16px;}
+  legend{font-family:var(--font-display); font-size:13px; padding:0 6px; color:var(--text-dim);}
+
+  .app{display:flex; min-height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:216px; flex:none; background:var(--sidebar-bg); color:var(--sidebar-text);
+    display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+    border-right:1px solid var(--sidebar-line);
+  }
+  .brand{padding:20px 18px 14px; border-bottom:1px solid var(--sidebar-line); display:flex; gap:10px; align-items:center;}
+  .brand-disc{width:26px;height:26px;border-radius:50%; background:radial-gradient(circle at 35% 30%, #3a3f42, var(--disc-black) 65%); box-shadow:inset 0 0 0 2px rgba(255,255,255,.06); flex:none;}
+  .brand-text .t1{font-family:var(--font-display); font-size:16px; line-height:1.1;}
+  .brand-text .t2{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--sidebar-text-dim);}
+  nav{padding:10px; flex:1;}
+  .navlink{
+    display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:var(--radius);
+    color:var(--sidebar-text); text-decoration:none; font-size:13.5px; margin-bottom:2px; background:none; border:none; width:100%; text-align:left;
+    opacity:.82;
+  }
+  .navlink:hover{background:var(--sidebar-hover); opacity:1;}
+  .navlink.active{background:var(--sidebar-active); opacity:1; box-shadow:inset 2px 0 0 var(--accent);}
+  .navlink .dot{width:7px;height:7px;border-radius:50%; background:var(--sidebar-text-dim); opacity:.5; flex:none;}
+  .navlink.active .dot{background:var(--accent); opacity:1;}
+  .sidebar-foot{padding:14px; border-top:1px solid var(--sidebar-line);}
+  .autostop-box{background:var(--sidebar-panel-bg); border:1px solid var(--sidebar-panel-border); border-radius:var(--radius); padding:10px;}
+  .autostop-box .row{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .autostop-box .lbl{font-size:12px; line-height:1.3; color:var(--sidebar-text-dim);}
+  .autostop-box .lbl b{display:block; font-size:12.5px; color:var(--sidebar-text);}
+  .autostop-note{font-size:10.5px; color:var(--sidebar-text-dim); margin-top:6px;}
+
+  /* ---------- Disc toggle (signature control) ---------- */
+  .disc-toggle{
+    position:relative; width:40px; height:22px; border-radius:11px; border:1px solid var(--line);
+    background:var(--panel-2); padding:2px; flex:none;
+  }
+  .autostop-box .disc-toggle{background:transparent; border-color:var(--sidebar-text-dim);}
+  .disc-toggle .disc{
+    width:16px; height:16px; border-radius:50%; position:absolute; top:2px; left:2px;
+    transform-style:preserve-3d; transition:transform .35s cubic-bezier(.4,1.4,.5,1), left .35s ease;
+  }
+  .disc-toggle.on .disc{ left:20px; }
+  .disc-toggle .face{position:absolute; inset:0; border-radius:50%; backface-visibility:hidden;}
+  .disc-toggle .face.white{background:radial-gradient(circle at 35% 30%, #fff, var(--disc-white) 70%); border:1px solid var(--disc-edge);}
+  .disc-toggle .face.black{background:radial-gradient(circle at 35% 30%, #3a3f42, var(--disc-black) 65%); transform:rotateY(180deg);}
+  .disc-toggle.on .disc{transform:rotateY(180deg);}
+  @media (prefers-reduced-motion:reduce){ .disc-toggle .disc{transition:none;} }
+
+  /* ---------- Main ---------- */
+  .main{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .statusbar{
+    background:var(--panel); border-bottom:1px solid var(--line); padding:10px 24px;
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap; min-height:52px;
+  }
+  .statusbar .running{display:flex; align-items:center; gap:10px; font-size:12.5px;}
+  .pulse{width:8px;height:8px;border-radius:50%; background:var(--success); box-shadow:0 0 0 0 var(--success); animation:pulse 1.8s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(127,181,135,.5);} 70%{box-shadow:0 0 0 7px rgba(127,181,135,0);} 100%{box-shadow:0 0 0 0 rgba(127,181,135,0);}}
+  @media (prefers-reduced-motion:reduce){ .pulse{animation:none;} }
+  .statusbar .clock{font-family:var(--font-mono); font-size:13px; background:var(--panel-2); border:1px solid var(--line); padding:3px 8px; border-radius:var(--radius);}
+  .statusbar .idle{color:var(--text-dim); font-size:12.5px; font-style:italic;}
+  .theme-note{margin-left:auto; font-size:11px; color:var(--text-dim);}
+
+  .content{padding:26px 30px 60px; max-width:1180px; width:100%; margin:0 auto;}
+  .page{display:none;}
+  .page.active{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion:reduce){ .page.active{animation:none;} }
+
+  .page-head{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:20px; flex-wrap:wrap;}
+  .page-head p{margin:2px 0 0; color:var(--text-dim); font-size:13px; max-width:60ch;}
+  .eyebrow{font-family:var(--font-body); font-weight:700; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); margin-bottom:4px;}
+  .eyebrow a{color:var(--link);}
+
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; border-radius:var(--radius); border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); padding:8px 14px; font-size:13px; font-weight:600;
+  }
+  .btn:hover{border-color:var(--accent-2);}
+  .btn.primary{background:var(--accent); border-color:var(--accent-2); color:var(--accent-ink);}
+  .btn.primary:hover{background:var(--accent-2); color:#fff;}
+  .btn.danger{color:var(--danger); background:var(--danger-bg); border-color:transparent;}
+  .btn.ghost{background:transparent;}
+  .btn.small{padding:5px 10px; font-size:12px;}
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px 20px; margin-bottom:18px;}
+  .card h3{font-size:15px;}
+
+  .callout{
+    background:linear-gradient(135deg, var(--panel) 0%, var(--callout-bg) 100%);
+    border:1px solid var(--callout-border); border-left:4px solid var(--accent);
+    border-radius:6px; padding:18px 22px; margin-bottom:18px;
+  }
+  .callout-label{font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); margin-bottom:6px;}
+  .callout h3{font-size:19px; margin-bottom:4px;}
+  .callout .sub{color:var(--text-dim); font-size:13px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media (max-width:820px){ .grid-2,.grid-3{grid-template-columns:1fr;} }
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th{text-align:left; font-family:var(--font-body); font-weight:700; font-size:13px; color:var(--text); border-bottom:1px solid var(--line); padding:10px 12px; white-space:nowrap;}
+  td{padding:12px; border-bottom:1px solid var(--line); vertical-align:middle; color:var(--text);}
+  tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--panel-2);}
+  .table-wrap{overflow-x:auto;}
+  .table-wrap table{margin:0;}
+
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:20px;}
+  .badge.built{background:var(--success-bg); color:var(--success);}
+  .badge.building{background:var(--warn-bg); color:var(--warn);}
+  .badge.failed{background:var(--danger-bg); color:var(--danger);}
+  .badge.unbuilt{background:var(--panel-2); color:var(--text-dim); border:1px solid var(--line);}
+
+  .disc-pair{display:inline-flex; align-items:center; gap:4px; font-family:var(--font-mono); font-size:12.5px;}
+  .disc{width:13px;height:13px;border-radius:50%; display:inline-block; flex:none;}
+  .disc.b{background:radial-gradient(circle at 35% 30%, #4a4f52, var(--disc-black) 65%);}
+  .disc.w{background:radial-gradient(circle at 35% 30%, #fff, var(--disc-white) 70%); border:1px solid var(--disc-edge);}
+
+  .vs-row{display:flex; align-items:center; gap:10px; font-size:13.5px;}
+  .vs-row .sep{color:var(--text-dim); font-family:var(--font-mono); font-size:11px;}
+
+  .progress-track{height:6px; border-radius:4px; background:var(--panel-2); border:1px solid var(--line); overflow:hidden; margin:8px 0 4px;}
+  .progress-fill{height:100%; background:linear-gradient(90deg,var(--accent-2),var(--accent)); transition:width .5s ease;}
+
+  .queue-item{display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 4px; border-bottom:1px solid var(--line);}
+  .queue-item:last-child{border-bottom:none;}
+  .queue-item .idx{font-family:var(--font-mono); color:var(--text-dim); font-size:12px; width:20px;}
+  .queue-meta{font-size:12px; color:var(--text-dim); margin-top:2px;}
+
+  .empty{text-align:center; padding:34px 20px; color:var(--text-dim);}
+  .empty .disc{width:34px;height:34px; margin:0 auto 10px;}
+
+  .toast-wrap{position:fixed; bottom:20px; right:20px; display:flex; flex-direction:column; gap:8px; z-index:50;}
+  .toast{background:var(--panel); border:1px solid var(--line); box-shadow:var(--shadow); border-radius:var(--radius); padding:10px 14px; font-size:13px; display:flex; align-items:center; gap:8px; animation:toastin .25s ease;}
+  @keyframes toastin{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+  .toast .disc{width:10px;height:10px;}
+  .toast.error{border-color:var(--danger);}
+
+  .modal-backdrop{position:fixed; inset:0; background:rgba(10,15,12,.5); display:flex; align-items:flex-start; justify-content:center; padding:6vh 20px; z-index:60; overflow-y:auto;}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); max-width:640px; width:100%; padding:22px 24px;}
+  .modal-head{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;}
+
+  .filelist td.actions{text-align:right; white-space:nowrap;}
+  .buildlog{background:#0A1912; color:#BFE3CE; font-family:var(--font-mono); font-size:12px; padding:12px 14px; border-radius:var(--radius); max-height:280px; overflow-y:auto; white-space:pre-wrap;}
+
+  /* ---------- File tree (engine detail) ---------- */
+  .tree{font-size:13px; overflow-x:auto;}
+  .tree-node{margin:0;}
+  .tree-row{display:flex; align-items:center; gap:8px; padding:6px 4px; border-radius:var(--radius);}
+  .tree-row:hover{background:var(--panel-2);}
+  .tree-row.dir{cursor:pointer; font-weight:600;}
+  .tree-row .twisty{width:14px; flex:none; text-align:center; color:var(--text-dim); font-size:11px; transition:transform .15s ease; display:inline-block;}
+  .tree-row.dir.collapsed .twisty{transform:rotate(-90deg);}
+  .tree-row .fname{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .tree-row .fmeta{color:var(--text-dim); font-family:var(--font-mono); font-size:11.5px; width:80px; flex:none; text-align:right;}
+  .tree-children{margin-left:20px; border-left:1px solid var(--line); padding-left:4px;}
+  .tree-children.collapsed{display:none;}
+  .tree-row .fileicon{width:14px; flex:none; text-align:center; color:var(--text-dim); font-size:12px;}
+
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px;}
+  .kv dt{color:var(--text-dim);}
+  .kv dd{margin:0; font-family:var(--font-mono);}
+
+  .preset-chip{display:inline-block; background:var(--panel-2); border:1px solid var(--line); border-radius:20px; padding:2px 9px; font-size:11.5px; margin:0 4px 4px 0;}
+
+  /* ---------- Spectate boards (one card per concurrent session/process) ---------- */
+  .spectate-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px;}
+  .spectate-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;}
+  .spectate-card-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
+  .spectate-card-head .session-label{font-weight:700; font-size:13px;}
+  .spectate-card-head .game-no{font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim);}
+  .spectate-players{display:flex; flex-direction:column; gap:3px; margin-bottom:8px; font-size:12.5px; min-height:38px;}
+  .spectate-players .disc-pair{display:flex; width:100%; gap:6px;}
+  .spectate-players .name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .spectate-players .side-tag{flex:none; font-size:10px; font-weight:700; color:var(--text-dim); background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:1px 6px; margin-left:2px;}
+  .spectate-board-wrap{display:flex; justify-content:center; margin:8px 0 10px;}
+  .spectate-board{display:grid; grid-template-columns:repeat(8,1fr); gap:2px; background:#0F3D2C; padding:6px; border-radius:5px; width:100%; max-width:220px;}
+  .spectate-cell{aspect-ratio:1; background:#1F6B4A; border-radius:1px; display:flex; align-items:center; justify-content:center;}
+  .spectate-cell .disc{width:78%; height:78%; box-shadow:0 1px 2px rgba(0,0,0,.35);}
+  .spectate-meta{display:flex; flex-direction:column; align-items:stretch; gap:5px; font-family:var(--font-mono); font-size:12px;}
+  .spectate-turn{display:flex; align-items:center; gap:5px; font-weight:700; max-width:100%; overflow:hidden;}
+  .spectate-turn .disc{flex:none;}
+  .spectate-turn .name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .spectate-tally{display:flex; align-items:center; gap:4px;}
+  .spectate-tally .count{display:inline-block; min-width:1.5em; text-align:center; font-variant-numeric:tabular-nums;}
+  .spectate-moveno .n{display:inline-block; min-width:2ch; font-variant-numeric:tabular-nums;}
+</style>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-disc"></div>
+      <div class="brand-text">
+        <div class="t1">NBoard Console</div>
+        <div class="t2">match server</div>
+      </div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot">
+      <div class="autostop-box" style="margin-bottom:10px;">
+        <div class="row">
+          <div class="lbl"><b>Theme</b><span id="themeLabel">Light</span></div>
+          <button class="disc-toggle" id="themeToggle" aria-pressed="false" onclick="toggleTheme()">
+            <span class="disc"><span class="face white"></span><span class="face black"></span></span>
+          </button>
+        </div>
+        <div class="autostop-note">Switch independently of your OS setting — this only affects this page.</div>
+      </div>
+      <div class="autostop-box">
+        <div class="row">
+          <div class="lbl"><b>Auto-shutdown</b>Stop EC2 when the queue is empty</div>
+          <button class="disc-toggle" id="autostopToggle" aria-pressed="false" onclick="toggleAutostop()">
+            <span class="disc"><span class="face white"></span><span class="face black"></span></span>
+          </button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div class="lbl">Idle minutes before stopping</div>
+          <input id="autostopIdleMinutes" class="mono" type="number" min="1" style="width:56px;padding:4px 6px;" value="15" onchange="updateAutostopIdleMinutes()">
+        </div>
+        <div class="autostop-note">Calls EC2 StopInstances on this instance once the queue has been empty for this many minutes. Requires the instance's IAM role to grant ec2:StopInstances on itself.</div>
+      </div>
+      <div class="autostop-box" style="margin-top:10px;">
+        <div class="lbl" style="margin-bottom:6px;"><b>History sync command</b></div>
+        <input id="historySyncCommand" class="mono" placeholder="e.g. rclone copy {dir} remote:bucket" style="width:100%;font-size:11.5px;" onchange="updateHistorySyncCommand()">
+        <div class="autostop-note">Runs after every completed match. <span class="mono">{dir}</span> is replaced with the local export folder (stats/GGF + a static viewer page) to push to a static host. Leave empty to disable syncing.</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="statusbar" id="statusbar"></div>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <section class="page" data-page="dashboard">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Dashboard</div>
+            <h1>Queue &amp; Progress</h1>
+            <p>See the match running now, what's queued next, and your most recent results.</p>
+          </div>
+          <button class="btn primary" onclick="go('newmatch')">+ Queue a new match</button>
+        </div>
+
+        <div class="callout" id="runningCard"></div>
+
+        <div class="card">
+          <h3>Queued</h3>
+          <div id="queueList"></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3>Recent results</h3>
+            <button class="btn ghost small" onclick="go('history')">View all →</button>
+          </div>
+          <div id="recentHistory"></div>
+        </div>
+      </section>
+
+      <!-- SPECTATE -->
+      <section class="page" data-page="spectate">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow"><a href="#" onclick="go('dashboard');return false;" style="color:var(--link);">← Back to dashboard</a></div>
+            <h1 id="spectateTitle">Spectate</h1>
+            <p>Each session runs as its own process in parallel. Every session's board is shown as its own card (view only — updates never affect engine think time).</p>
+          </div>
+        </div>
+        <div class="spectate-grid" id="spectateGrid"></div>
+      </section>
+
+      <!-- NEW MATCH -->
+      <section class="page" data-page="newmatch">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">New Match</div>
+            <h1>Create a new match</h1>
+            <p>Choose the Black and White engines and a match preset, set the number of matches and sessions, then add it to the queue. Each entry runs once and matches are processed in queue order.</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card" id="engineCard0"></div>
+          <div class="card" id="engineCard1"></div>
+        </div>
+
+        <div class="card">
+          <h3>Match preset</h3>
+          <div class="field">
+            <label for="presetSelect">Select preset</label>
+            <select id="presetSelect" onchange="renderPresetPreview()"></select>
+          </div>
+          <div id="presetPreview" class="hint"></div>
+        </div>
+
+        <div class="card">
+          <h3>Run settings</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label for="matchesInput">Matches (--matches)</label>
+              <input type="number" id="matchesInput" min="1" value="200">
+              <div class="hint">In Synchro mode, each match counts as 2 games.</div>
+            </div>
+            <div class="field">
+              <label for="sessionsInput">Sessions (--sessions)</label>
+              <input type="number" id="sessionsInput" min="1" value="4">
+              <div class="hint">Defaults to the server's logical core count if omitted.</div>
+            </div>
+          </div>
+          <button class="btn primary" onclick="addToQueue()">Add to queue</button>
+        </div>
+      </section>
+
+      <!-- ENGINES -->
+      <section class="page" data-page="engines">
+        <div id="engineDetailView"></div>
+        <div id="engineListView">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Engines</div>
+              <h1>Engines</h1>
+              <p>Upload the full source as a zip and build it on the server. The extracted directory becomes the working directory used during matches.</p>
+            </div>
+            <button class="btn primary" onclick="showEngineForm()">+ Register new engine</button>
+          </div>
+          <div class="card" id="engineFormCard" style="display:none;"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Registered</th><th>Build status</th><th>Launch command</th><th></th></tr></thead>
+              <tbody id="engineTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- BOOKS -->
+      <section class="page" data-page="books">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Opening Books</div>
+            <h1>Opening Books</h1>
+            <p>Register a text file in "64-character board + side to move" format. Match presets reference these books.</p>
+          </div>
+          <button class="btn primary" onclick="toggleBookForm()">+ Register book</button>
+        </div>
+        <div class="card" id="bookFormCard" style="display:none;"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Registered</th><th>Positions</th><th>File</th><th></th></tr></thead>
+            <tbody id="bookTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PRESETS -->
+      <section class="page" data-page="presets">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Match Presets</div>
+            <h1>Match Presets</h1>
+            <p>Save session mode, match mode, color swap, book, and time control together as a named preset to pick when creating a new match.</p>
+          </div>
+          <button class="btn primary" onclick="showPresetForm()">+ Create preset</button>
+        </div>
+        <div class="card" id="presetFormCard" style="display:none;"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Session mode</th><th>Match mode</th><th>Swap colors</th><th>Book</th><th></th></tr></thead>
+            <tbody id="presetTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="page" data-page="history">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">History</div>
+            <h1>History</h1>
+            <p>Download stats as JSON or game records as GGF. Click a row to see the breakdown.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Matchup</th><th>Preset</th><th>Matches</th><th>Status</th><th></th></tr></thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ================= API layer ================= */
+const API = '/api';
+
+async function safeText(res){
+  try{
+    const t = await res.text();
+    if(!t) return res.statusText;
+    try{
+      const parsed = JSON.parse(t);
+      if(typeof parsed === 'string') return parsed;
+      return parsed.detail || parsed.title || JSON.stringify(parsed);
+    }catch{ return t; }
+  }catch{ return res.statusText; }
+}
+async function apiGet(path){
+  const res = await fetch(API+path);
+  if(!res.ok) throw new Error(await safeText(res));
+  return res.json();
+}
+async function apiJson(path, method, body){
+  const res = await fetch(API+path, {
+    method,
+    headers: body!==undefined ? {'Content-Type':'application/json'} : undefined,
+    body: body!==undefined ? JSON.stringify(body) : undefined
+  });
+  if(!res.ok) throw new Error(await safeText(res));
+  return res.status===204 ? null : res.json();
+}
+async function apiForm(path, method, formData){
+  const res = await fetch(API+path, {method, body: formData});
+  if(!res.ok) throw new Error(await safeText(res));
+  return res.status===204 ? null : res.json();
+}
+async function apiDelete(path){
+  const res = await fetch(API+path, {method:'DELETE'});
+  if(!res.ok) throw new Error(await safeText(res));
+}
+
+/* ================= State ================= */
+let engines = [];
+let books = [];
+let presets = [];
+let historyEntries = [];
+let settings = {AutoStopWhenQueueEmpty:false, AutoStopIdleMinutes:15, HistorySyncCommand:''};
+let latestQueueStatus = {Running:null, Pending:[]};
+let latestSpectateStatus = {Running:false, Sessions:[]};
+
+let currentPage = 'dashboard';
+let pendingQueueItem = null;
+let activeEngineId = null;
+
+/* ================= Helpers ================= */
+function toast(msg, isError){
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (isError?' error':'');
+  el.innerHTML = `<span class="disc ${isError?'w':'b'}"></span>${escapeHtml(msg)}`;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 4000);
+}
+function engineById(id){ return engines.find(e=>e.Id===id); }
+function bookById(id){ return books.find(b=>b.Id===id); }
+function presetById(id){ return presets.find(p=>p.Id===id); }
+function fmtElapsed(ms){
+  const s = Math.max(0, Math.floor(ms/1000));
+  const h = String(Math.floor(s/3600)).padStart(2,'0');
+  const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const sec = String(s%60).padStart(2,'0');
+  return `${h}:${m}:${sec}`;
+}
+function fmtDate(iso){ return iso ? iso.slice(0,10) : '—'; }
+function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function secondsToHHMMSS(totalSeconds){
+  const s = Math.max(0, Math.floor(Number(totalSeconds)||0));
+  const hh = String(Math.floor(s/3600)).padStart(2,'0');
+  const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
+  const ss = String(s%60).padStart(2,'0');
+  return `${hh}:${mm}:${ss}`;
+}
+function describeTimeControl(tcCommon, tcFirst, tcSecond){
+  const describe = (s) => {
+    if(!s) return null;
+    const parts = s.split('/');
+    let label = parts[0] || '00:00:00';
+    if(parts[1] && parts[1] !== '00:00:00') label += ` + ${parts[1]}/move`;
+    if(parts[2] && parts[2] !== '00:00:00') label += ` + ${parts[2]} extra`;
+    return label;
+  };
+  if(tcFirst || tcSecond)
+    return `Black: ${describe(tcFirst)||describe(tcCommon)||'None'} · White: ${describe(tcSecond)||describe(tcCommon)||'None'}`;
+  return describe(tcCommon) || 'None';
+}
+function buildStatusInfo(status){
+  if(status === 'Success') return {cls:'built', label:'Built'};
+  if(!status || status === 'NotBuilt') return {cls:'unbuilt', label:'Not built'};
+  return {cls:'failed', label: status};
+}
+
+/* ================= Nav ================= */
+const pages = [
+  {key:"dashboard", label:"Dashboard"},
+  {key:"newmatch", label:"New Match"},
+  {key:"engines", label:"Engines"},
+  {key:"books", label:"Opening Books"},
+  {key:"presets", label:"Match Presets"},
+  {key:"history", label:"History"},
+];
+function renderNav(){
+  document.getElementById('nav').innerHTML = pages.map(p => `
+    <button class="navlink ${p.key===currentPage?'active':''}" onclick="go('${p.key}')">
+      <span class="dot"></span>${p.label}
+    </button>`).join('');
+}
+async function go(key){
+  currentPage = key;
+  document.querySelectorAll('.page').forEach(el => el.classList.toggle('active', el.dataset.page===key));
+  renderNav();
+  window.scrollTo({top:0});
+
+  try{
+    if(key==='engines'){ await refreshEngines(); showEngineList(); }
+    else if(key==='books'){ await refreshBooks(); renderBookTable(); }
+    else if(key==='presets'){ await Promise.all([refreshBooks(), refreshPresets()]); renderPresetTable(); }
+    else if(key==='newmatch'){ await Promise.all([refreshEngines(), refreshBooks(), refreshPresets()]); renderNewMatch(); }
+    else if(key==='history'){ await refreshHistory(); renderHistoryTable(); }
+    else if(key==='dashboard'){ await Promise.all([refreshEngines(), refreshPresets(), refreshHistory()]); await pollTick(); }
+  }catch(e){ toast(e.message, true); }
+}
+
+/* ================= Data refresh ================= */
+async function refreshEngines(){ engines = await apiGet('/engines'); }
+async function refreshBooks(){ books = await apiGet('/books'); }
+async function refreshPresets(){ presets = await apiGet('/presets'); }
+async function refreshHistory(){ historyEntries = await apiGet('/history'); }
+
+/* ================= Polling (queue status + spectate) ================= */
+async function pollTick(){
+  try{ latestQueueStatus = await apiGet('/queue'); }catch(e){ /* transient */ }
+  renderStatusbar();
+  if(currentPage==='dashboard') renderDashboard();
+
+  const running = latestQueueStatus && latestQueueStatus.Running;
+  if(running || currentPage==='spectate'){
+    try{ latestSpectateStatus = await apiGet('/spectate'); }catch(e){ /* transient */ }
+  } else {
+    latestSpectateStatus = {Running:false, Sessions:[]};
+  }
+  if(currentPage==='spectate') renderSpectateGrid();
+}
+function tickClock(){
+  const el = document.getElementById('elapsedClock');
+  const running = latestQueueStatus && latestQueueStatus.Running;
+  if(running && el) el.textContent = fmtElapsed(Date.now() - Date.parse(running.StartedAt));
+}
+
+/* ================= Status bar ================= */
+function renderStatusbar(){
+  const running = latestQueueStatus && latestQueueStatus.Running;
+  const bar = document.getElementById('statusbar');
+  if(running){
+    bar.innerHTML = `
+      <div class="running"><span class="pulse"></span>Running: <strong>${escapeHtml(running.Engine0Name)}</strong> <span class="mono" style="color:var(--text-dim)">vs</span> <strong>${escapeHtml(running.Engine1Name)}</strong>
+      &nbsp;·&nbsp; ${running.CompletedGames} / ${running.TotalGames} games</div>
+      <div class="clock" id="elapsedClock">${fmtElapsed(Date.now()-Date.parse(running.StartedAt))}</div>
+      <div class="theme-note">Matches keep running even if you navigate away</div>`;
+  } else {
+    bar.innerHTML = `<div class="idle">No match is running</div><div class="theme-note">Adding one to the queue starts it automatically</div>`;
+  }
+}
+
+/* ================= Dashboard ================= */
+function renderDashboard(){
+  const running = latestQueueStatus && latestQueueStatus.Running;
+  const runningCard = document.getElementById('runningCard');
+  if(running){
+    runningCard.className = 'callout';
+    const pct = running.TotalGames>0 ? Math.min(100, Math.round(running.CompletedGames/running.TotalGames*100)) : 0;
+    runningCard.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div class="callout-label">Running match</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn small" onclick="openSpectate()">▸ Spectate</button>
+          <button class="btn small danger" onclick="confirmStopRunning()">■ Stop</button>
+        </div>
+      </div>
+      <div class="vs-row">
+        <span class="disc-pair"><span class="disc b"></span>${escapeHtml(running.Engine0Name)}</span>
+        <span class="sep">VS</span>
+        <span class="disc-pair"><span class="disc w"></span>${escapeHtml(running.Engine1Name)}</span>
+        <span class="preset-chip">${escapeHtml(running.PresetName)}</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="sub mono">${running.CompletedGames} / ${running.TotalGames} games done · ${running.Sessions} sessions · elapsed ${fmtElapsed(Date.now()-Date.parse(running.StartedAt))}</div>`;
+  } else {
+    runningCard.className = 'card';
+    runningCard.innerHTML = `<div class="empty"><div class="disc w" style="width:34px;height:34px;margin:0 auto 10px;"></div>No match is running. Add one to the queue to get started.</div>`;
+  }
+
+  const pending = (latestQueueStatus && latestQueueStatus.Pending) || [];
+  const queueList = document.getElementById('queueList');
+  queueList.innerHTML = pending.length===0 ? `<div class="empty">Nothing queued</div>` : pending.map((q,i)=>{
+    const e0 = engineById(q.Engine0Id), e1 = engineById(q.Engine1Id), preset = presetById(q.PresetId);
+    return `<div class="queue-item">
+      <div style="display:flex;gap:12px;align-items:center;">
+        <span class="idx mono">#${i+1}</span>
+        <div>
+          <div class="vs-row"><span class="disc-pair"><span class="disc b"></span>${escapeHtml(e0?e0.Name:q.Engine0Id)}</span><span class="sep">vs</span><span class="disc-pair"><span class="disc w"></span>${escapeHtml(e1?e1.Name:q.Engine1Id)}</span></div>
+          <div class="queue-meta">${escapeHtml(preset?preset.Name:q.PresetId)} · ${q.Matches} matches · ${q.Sessions} sessions</div>
+        </div>
+      </div>
+      <button class="btn danger small" onclick="cancelQueue('${q.Id}')">Cancel</button>
+    </div>`;
+  }).join('');
+
+  const recent = document.getElementById('recentHistory');
+  const items = historyEntries.slice(0,3);
+  recent.innerHTML = items.length ? items.map(h=>`
+    <div class="queue-item">
+      <div>
+        <div class="vs-row"><span class="disc-pair"><span class="disc b"></span>${escapeHtml(h.Engine0Name)}</span><span class="sep">vs</span><span class="disc-pair"><span class="disc w"></span>${escapeHtml(h.Engine1Name)}</span></div>
+        <div class="queue-meta">${fmtDate(h.StartedAt)} · ${escapeHtml(h.PresetName)}</div>
+      </div>
+      <div class="mono" style="font-size:12.5px;">${escapeHtml(h.Status)}</div>
+    </div>`).join('') : `<div class="empty">No completed matches yet</div>`;
+}
+
+async function cancelQueue(id){
+  try{
+    await apiDelete('/queue/'+id);
+    toast('Removed from the queue');
+    await pollTick();
+  }catch(e){ toast('Failed to cancel: '+e.message, true); }
+}
+
+/* ================= New match ================= */
+function engineOptionCard(slotIndex){
+  return `
+    <h3>${slotIndex===0?'Black':'White'} Engine</h3>
+    <div class="field">
+      <label>Select engine</label>
+      <select id="engineSelect${slotIndex}" onchange="onEngineSelect(${slotIndex})">
+        ${engines.map(e=>`<option value="${e.Id}">${escapeHtml(e.Name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>Command-line arguments <span style="font-weight:400;color:var(--text-dim)">(override for this match only)</span></label>
+      <input id="argsInput${slotIndex}" class="mono">
+    </div>
+    <div class="field">
+      <label>Initial commands <span style="font-weight:400;color:var(--text-dim)">(one per line, override for this match only)</span></label>
+      <textarea id="initInput${slotIndex}" rows="3" class="mono"></textarea>
+    </div>
+    <div class="kv" style="margin-top:10px;">
+      <dt>Executable (fixed)</dt><dd id="pathDisplay${slotIndex}"></dd>
+      <dt>Working directory (fixed)</dt><dd id="workdirDisplay${slotIndex}"></dd>
+    </div>`;
+}
+function onEngineSelect(slot){
+  const id = document.getElementById(`engineSelect${slot}`).value;
+  const e = engineById(id);
+  if(!e) return;
+  document.getElementById(`argsInput${slot}`).value = e.DefaultArguments || '';
+  document.getElementById(`initInput${slot}`).value = (e.DefaultInitialCommands||[]).join('\n');
+  document.getElementById(`pathDisplay${slot}`).textContent = e.DefaultPath || '';
+  document.getElementById(`workdirDisplay${slot}`).textContent = e.DefaultWorkDir || '';
+}
+function renderNewMatch(){
+  if(engines.length===0){
+    document.getElementById('engineCard0').innerHTML = `<div class="empty">No engines registered yet. <a href="#" onclick="go('engines');return false;">Register one first →</a></div>`;
+    document.getElementById('engineCard1').innerHTML = '';
+  } else {
+    document.getElementById('engineCard0').innerHTML = engineOptionCard(0);
+    document.getElementById('engineCard1').innerHTML = engineOptionCard(1);
+    if(engines.length>1) document.getElementById('engineSelect1').value = engines[1].Id;
+    onEngineSelect(0); onEngineSelect(1);
+  }
+  const presetSelect = document.getElementById('presetSelect');
+  presetSelect.innerHTML = presets.length
+    ? presets.map(p=>`<option value="${p.Id}">${escapeHtml(p.Name)}</option>`).join('')
+    : '';
+  if(presets.length===0){
+    document.getElementById('presetPreview').innerHTML = `No presets yet. <a href="#" onclick="go('presets');return false;">Create one first →</a>`;
+  } else {
+    renderPresetPreview();
+  }
+}
+function renderPresetPreview(){
+  const id = document.getElementById('presetSelect').value;
+  const p = presetById(id);
+  if(!p) return;
+  const book = p.BookId ? bookById(p.BookId) : null;
+  document.getElementById('presetPreview').innerHTML =
+    `Session mode: <strong>${p.SessionMode}</strong> · Match mode: <strong>${p.MatchMode}</strong> · `+
+    `Swap colors: <strong>${p.SwapPlayer?'Yes':'No'}</strong> · Book: <strong>${escapeHtml(book?book.Name:'None')}</strong> · `+
+    `Time control: <strong>${escapeHtml(describeTimeControl(p.TimeControlCommon,p.TimeControlFirst,p.TimeControlSecond))}</strong>`;
+}
+function addToQueue(){
+  if(engines.length===0 || presets.length===0){ toast('Register at least one engine and one preset first', true); return; }
+  const body = {
+    Engine0Id: document.getElementById('engineSelect0').value,
+    Engine0ArgumentsOverride: document.getElementById('argsInput0').value,
+    Engine0InitialCommandsOverride: document.getElementById('initInput0').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    Engine1Id: document.getElementById('engineSelect1').value,
+    Engine1ArgumentsOverride: document.getElementById('argsInput1').value,
+    Engine1InitialCommandsOverride: document.getElementById('initInput1').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    PresetId: document.getElementById('presetSelect').value,
+    Matches: Math.max(1, Number(document.getElementById('matchesInput').value)||1),
+    Sessions: Math.max(1, Number(document.getElementById('sessionsInput').value)||1),
+  };
+  if(!settings.AutoStopWhenQueueEmpty){
+    confirmAutostopThenQueue(body);
+  } else {
+    finalizeAddToQueue(body);
+  }
+}
+async function finalizeAddToQueue(body){
+  try{
+    await apiJson('/queue', 'POST', body);
+    toast('Match added to the queue');
+    go('dashboard');
+  }catch(e){ toast('Failed to queue match: '+e.message, true); }
+}
+function confirmStopRunning(){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+      <div class="modal" style="max-width:460px;">
+        <div class="modal-head">
+          <div>
+            <div class="eyebrow">Confirm</div>
+            <h2>Stop the running match?</h2>
+          </div>
+        </div>
+        <p style="margin:0 0 16px;font-size:13.5px;color:var(--text-dim);">
+          Sessions waiting for an engine stop immediately. A session whose engine is mid-move finishes
+          that one move first, then also stops. Any game not yet finished when this happens is discarded —
+          it will not appear in the saved stats or game record.
+        </p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end;">
+          <button class="btn ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn danger" onclick="stopRunning()">Stop match</button>
+        </div>
+      </div>
+    </div>`;
+}
+async function stopRunning(){
+  closeModal();
+  try{
+    await apiJson('/queue/cancel-running', 'POST');
+    toast('Stop requested — finishing in-flight moves…');
+    await pollTick();
+  }catch(e){ toast('Failed to stop the match: '+e.message, true); }
+}
+function confirmAutostopThenQueue(item){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+      <div class="modal" style="max-width:460px;">
+        <div class="modal-head">
+          <div>
+            <div class="eyebrow">Confirm</div>
+            <h2>Auto-shutdown is off</h2>
+          </div>
+        </div>
+        <p style="margin:0 0 16px;font-size:13.5px;color:var(--text-dim);">
+          If you continue, the EC2 instance will stay running even after the whole queue finishes. Continue anyway?
+        </p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end;">
+          <button class="btn ghost" onclick="pendingQueueItem=null;closeModal()">Cancel</button>
+          <button class="btn" onclick="__finalizeFromModal(false)">Start anyway (no auto-shutdown)</button>
+          <button class="btn primary" onclick="__finalizeFromModal(true)">Enable auto-shutdown and start</button>
+        </div>
+      </div>
+    </div>`;
+  pendingQueueItem = item;
+}
+async function __finalizeFromModal(enableAutostop){
+  const item = pendingQueueItem;
+  pendingQueueItem = null;
+  closeModal();
+  if(!item) return;
+  if(enableAutostop && !settings.AutoStopWhenQueueEmpty){
+    try{
+      settings = await apiJson('/settings','PUT',{...settings, AutoStopWhenQueueEmpty:true});
+      applyAutostopUI();
+    }catch(e){ toast('Failed to enable auto-shutdown: '+e.message, true); }
+  }
+  await finalizeAddToQueue(item);
+}
+
+/* ================= Engines ================= */
+function showEngineList(){
+  document.getElementById('engineDetailView').style.display='none';
+  document.getElementById('engineListView').style.display='block';
+  document.getElementById('engineFormCard').style.display='none';
+  renderEngineTable();
+}
+function renderEngineTable(){
+  document.getElementById('engineTableBody').innerHTML = engines.length ? engines.map(e=>{
+    const b = buildStatusInfo(e.LastBuildStatus);
+    return `
+    <tr>
+      <td><a href="#" onclick="openEngineDetail('${e.Id}');return false;" style="font-weight:600;">${escapeHtml(e.Name)}</a></td>
+      <td class="mono" style="color:var(--text-dim)">${fmtDate(e.CreatedAt)}</td>
+      <td><span class="badge ${b.cls}">${escapeHtml(b.label)}</span></td>
+      <td class="mono" style="font-size:12px;color:var(--text-dim)">${escapeHtml(e.DefaultPath)} ${escapeHtml(e.DefaultArguments)}</td>
+      <td style="text-align:right;"><button class="btn small ghost" onclick="openEngineDetail('${e.Id}')">Details</button></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="5"><div class="empty">No engines registered yet</div></td></tr>`;
+}
+function showEngineForm(){
+  const card = document.getElementById('engineFormCard');
+  card.style.display='block';
+  card.innerHTML = `
+    <h3>Register a new engine</h3>
+    <div class="grid-2">
+      <div class="field"><label>Engine name</label><input id="newEngName" placeholder="e.g. Edax 4.6 (depth18)"></div>
+      <div class="field"><label>Source archive (.zip)</label><input type="file" id="newEngZip" accept=".zip"></div>
+    </div>
+    <fieldset>
+      <legend>Build settings</legend>
+      <div class="grid-2">
+        <div class="field"><label>Build command</label><input id="newEngBuildCmd" class="mono" placeholder="make -f Makefile.linux CC=gcc"></div>
+        <div class="field"><label>Build working directory</label><input id="newEngBuildDir" class="mono" placeholder=". (relative to the zip root)" value="."></div>
+      </div>
+      <div class="hint">Paths are relative to the extracted zip directory.</div>
+    </fieldset>
+    <fieldset>
+      <legend>Launch command settings (defaults)</legend>
+      <div class="grid-2">
+        <div class="field"><label>Executable (Path)</label><input id="newEngPath" class="mono" placeholder="./bin/edax"></div>
+        <div class="field"><label>Command-line arguments (Arguments)</label><input id="newEngArgs" class="mono" placeholder="-nboard"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Working directory (WorkDir)</label><input id="newEngWorkDir" class="mono" value="."></div>
+        <div class="field"><label>Initial commands (InitialCommands, one per line)</label><textarea id="newEngInit" class="mono" rows="3" placeholder="set depth 18&#10;set hash 22"></textarea></div>
+      </div>
+      <div class="hint">These are the defaults saved at registration. Only Arguments and InitialCommands can be overridden per match when creating a new match.</div>
+    </fieldset>
+    <button class="btn primary" id="submitEngineBtn" onclick="submitNewEngine()">Register</button>
+    <button class="btn ghost" onclick="document.getElementById('engineFormCard').style.display='none'">Cancel</button>`;
+}
+async function submitNewEngine(){
+  const name = document.getElementById('newEngName').value.trim();
+  if(!name){ toast('Enter an engine name', true); return; }
+  const zipInput = document.getElementById('newEngZip');
+  if(!zipInput.files[0]){ toast('Choose a zip file', true); return; }
+
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('buildCommand', document.getElementById('newEngBuildCmd').value);
+  fd.append('buildWorkDir', document.getElementById('newEngBuildDir').value || '.');
+  fd.append('defaultPath', document.getElementById('newEngPath').value);
+  fd.append('defaultArguments', document.getElementById('newEngArgs').value);
+  fd.append('defaultWorkDir', document.getElementById('newEngWorkDir').value || '.');
+  fd.append('defaultInitialCommands', document.getElementById('newEngInit').value);
+  fd.append('zip', zipInput.files[0]);
+
+  const btn = document.getElementById('submitEngineBtn');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try{
+    await apiForm('/engines', 'POST', fd);
+    document.getElementById('engineFormCard').style.display='none';
+    toast('Engine registered (not built yet)');
+    await refreshEngines();
+    renderEngineTable();
+  }catch(e){ toast('Failed to register engine: '+e.message, true); }
+  finally{ btn.disabled = false; btn.textContent = 'Register'; }
+}
+
+async function openEngineDetail(id){
+  activeEngineId = id;
+  document.getElementById('engineListView').style.display='none';
+  const wrap = document.getElementById('engineDetailView');
+  wrap.style.display='block';
+  wrap.innerHTML = `<div class="empty">Loading…</div>`;
+  await refreshEngineDetail();
+}
+async function refreshEngineDetail(){
+  let e, files, buildLog = null;
+  try{
+    e = await apiGet(`/engines/${activeEngineId}`);
+  }catch(err){ toast('Failed to load engine: '+err.message, true); showEngineList(); return; }
+  const idx = engines.findIndex(x=>x.Id===activeEngineId);
+  if(idx>=0) engines[idx]=e; else engines.push(e);
+
+  try{ files = await apiGet(`/engines/${activeEngineId}/files`); }catch{ files = []; }
+  if(e.LastBuildStatus && e.LastBuildStatus !== 'NotBuilt'){
+    try{
+      const res = await fetch(`${API}/engines/${activeEngineId}/build-log`);
+      if(res.ok) buildLog = await res.text();
+    }catch{ /* ignore */ }
+  }
+  renderEngineDetail(e, buildLog);
+  renderFileTree(files);
+}
+function renderEngineDetail(e, buildLog){
+  const b = buildStatusInfo(e.LastBuildStatus);
+  const wrap = document.getElementById('engineDetailView');
+  wrap.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="eyebrow"><a href="#" onclick="showEngineList();return false;" style="color:var(--link);">← Engine list</a></div>
+        <h1>${escapeHtml(e.Name)}</h1>
+        <p><span class="badge ${b.cls}">${escapeHtml(b.label)}</span> · Registered ${fmtDate(e.CreatedAt)}</p>
+      </div>
+      <button class="btn primary" id="rebuildBtn" onclick="rebuildEngine()">Rebuild</button>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>Build settings</h3>
+        <div class="field"><label>Build command</label><input id="engBuildCmd" class="mono" value="${escapeHtml(e.BuildCommand)}"></div>
+        <div class="field"><label>Build working directory</label><input id="engBuildDir" class="mono" value="${escapeHtml(e.BuildWorkDir)}"></div>
+        <div class="hint" style="margin-bottom:10px;">Replace the source zip if you need to update the engine's code.</div>
+        <input type="file" id="engZipReplace" accept=".zip" style="margin-bottom:8px;">
+        <button class="btn small" onclick="replaceEngineZip()">Upload &amp; replace source</button>
+        <div id="buildLogWrap" style="margin-top:12px;">${buildLog!=null?`<div class="buildlog">${escapeHtml(buildLog)}</div>`:''}</div>
+      </div>
+      <div class="card">
+        <h3>Launch command settings (defaults)</h3>
+        <div class="field"><label>Executable (Path)</label><input id="engPath" class="mono" value="${escapeHtml(e.DefaultPath)}"></div>
+        <div class="field"><label>Command-line arguments (Arguments)</label><input id="engArgs" class="mono" value="${escapeHtml(e.DefaultArguments)}"></div>
+        <div class="field"><label>Working directory (WorkDir)</label><input id="engWorkDir" class="mono" value="${escapeHtml(e.DefaultWorkDir)}"></div>
+        <div class="field"><label>Initial commands (InitialCommands)</label><textarea id="engInit" class="mono" rows="3">${escapeHtml((e.DefaultInitialCommands||[]).join('\n'))}</textarea></div>
+        <button class="btn small primary" onclick="saveEngineSettings()">Save settings</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Directory files</h3>
+      <div class="hint" style="margin-bottom:10px;">This is the extracted directory layout (the extraction root is the working directory used during matches). Click a folder to expand or collapse it. Files can be downloaded or replaced individually.</div>
+      <div class="tree" id="engineFileTree"></div>
+    </div>`;
+}
+async function saveEngineSettings(){
+  const body = {
+    Name: engineById(activeEngineId).Name,
+    BuildCommand: document.getElementById('engBuildCmd').value,
+    BuildWorkDir: document.getElementById('engBuildDir').value || '.',
+    DefaultPath: document.getElementById('engPath').value,
+    DefaultArguments: document.getElementById('engArgs').value,
+    DefaultWorkDir: document.getElementById('engWorkDir').value || '.',
+    DefaultInitialCommands: document.getElementById('engInit').value.split('\n').map(s=>s.trim()).filter(Boolean),
+  };
+  try{
+    await apiJson(`/engines/${activeEngineId}`, 'PUT', body);
+    toast('Settings saved');
+    await refreshEngineDetail();
+  }catch(e){ toast('Failed to save settings: '+e.message, true); }
+}
+async function replaceEngineZip(){
+  const input = document.getElementById('engZipReplace');
+  if(!input.files[0]){ toast('Choose a zip file first', true); return; }
+  const fd = new FormData();
+  fd.append('zip', input.files[0]);
+  try{
+    await apiForm(`/engines/${activeEngineId}/zip`, 'PUT', fd);
+    toast('Source replaced — build status reset');
+    await refreshEngineDetail();
+  }catch(e){ toast('Failed to replace source: '+e.message, true); }
+}
+async function rebuildEngine(){
+  const btn = document.getElementById('rebuildBtn');
+  btn.disabled = true; btn.textContent = 'Building…';
+  document.getElementById('buildLogWrap').innerHTML = `<div class="buildlog">Running build…</div>`;
+  try{
+    const result = await apiJson(`/engines/${activeEngineId}/build`, 'POST');
+    document.getElementById('buildLogWrap').innerHTML = `<div class="buildlog">${escapeHtml(result.Log)}</div>`;
+    toast(result.Success ? 'Build succeeded' : 'Build failed', !result.Success);
+  }catch(e){
+    document.getElementById('buildLogWrap').innerHTML = `<div class="buildlog">${escapeHtml(e.message)}</div>`;
+    toast('Build request failed: '+e.message, true);
+  }finally{
+    const idx = engines.findIndex(x=>x.Id===activeEngineId);
+    try{
+      const e = await apiGet(`/engines/${activeEngineId}`);
+      if(idx>=0) engines[idx]=e;
+      const b = buildStatusInfo(e.LastBuildStatus);
+      document.querySelector('#engineDetailView .badge').outerHTML = `<span class="badge ${b.cls}">${escapeHtml(b.label)}</span>`;
+    }catch{ /* ignore */ }
+    btn.disabled = false; btn.textContent = 'Rebuild';
+  }
+}
+
+function buildFileTree(files){
+  const root = {dirs:{}, files:[]};
+  files.forEach((f,i)=>{
+    const parts = f.Path.split('/');
+    let node = root;
+    for(let d=0; d<parts.length-1; d++){
+      node.dirs[parts[d]] = node.dirs[parts[d]] || {dirs:{}, files:[]};
+      node = node.dirs[parts[d]];
+    }
+    node.files.push({...f, index:i});
+  });
+  return root;
+}
+function fmtSize(bytes){
+  if(bytes < 1024) return `${bytes} B`;
+  if(bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1024/1024).toFixed(1)} MB`;
+}
+function renderTreeNode(node){
+  const dirHtml = Object.keys(node.dirs).sort().map(k=>{
+    const child = node.dirs[k];
+    const childId = 'dir_'+Math.random().toString(36).slice(2,9);
+    return `
+      <div class="tree-node">
+        <div class="tree-row dir" onclick="document.getElementById('${childId}').classList.toggle('collapsed'); this.classList.toggle('collapsed');">
+          <span class="twisty">▾</span><span class="fileicon">▤</span><span class="fname">${escapeHtml(k)}/</span>
+        </div>
+        <div class="tree-children" id="${childId}">${renderTreeNode(child)}</div>
+      </div>`;
+  }).join('');
+  const fileHtml = node.files.map(f=>`
+    <div class="tree-row">
+      <span class="twisty"></span><span class="fileicon">▯</span>
+      <span class="fname mono">${escapeHtml(f.Path.split('/').pop())}</span>
+      <span class="fmeta">${fmtSize(f.Size)}</span>
+      <span class="fmeta">${fmtDate(f.Modified)}</span>
+      <a class="btn small ghost" href="${API}/engines/${activeEngineId}/files/content?path=${encodeURIComponent(f.Path)}" target="_blank" download>DL</a>
+      <button class="btn small" onclick="replaceEngineFile('${f.Path.replace(/'/g,"\\'")}')">Replace</button>
+    </div>`).join('');
+  return dirHtml + fileHtml;
+}
+function renderFileTree(files){
+  const el = document.getElementById('engineFileTree');
+  if(!el) return;
+  el.innerHTML = files.length ? renderTreeNode(buildFileTree(files)) : `<div class="empty">No files (source not extracted?)</div>`;
+}
+function replaceEngineFile(path){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if(!file) return;
+    try{
+      const res = await fetch(`${API}/engines/${activeEngineId}/files/content?path=${encodeURIComponent(path)}`, {method:'PUT', body:file});
+      if(!res.ok) throw new Error(await safeText(res));
+      toast('File replaced');
+      const files = await apiGet(`/engines/${activeEngineId}/files`);
+      renderFileTree(files);
+    }catch(e){ toast('Failed to replace file: '+e.message, true); }
+  };
+  input.click();
+}
+
+/* ================= Books ================= */
+function renderBookTable(){
+  document.getElementById('bookTableBody').innerHTML = books.length ? books.map(b=>`
+    <tr>
+      <td style="font-weight:600;">${escapeHtml(b.Name)}</td>
+      <td class="mono" style="color:var(--text-dim)">${fmtDate(b.UploadedAt)}</td>
+      <td class="mono">${b.NumPositions.toLocaleString()}</td>
+      <td class="mono" style="color:var(--text-dim)">book.txt</td>
+      <td style="text-align:right;"><a class="btn small ghost" href="${API}/books/${b.Id}/content" target="_blank" download>Download</a></td>
+    </tr>`).join('') : `<tr><td colspan="5"><div class="empty">No books registered yet</div></td></tr>`;
+}
+function toggleBookForm(){
+  const card = document.getElementById('bookFormCard');
+  const show = card.style.display==='none';
+  card.style.display = show?'block':'none';
+  if(show) card.innerHTML = `
+    <h3>Register a book</h3>
+    <div class="grid-2">
+      <div class="field"><label>Name</label><input id="newBookName" placeholder="e.g. 10-ply Opening Book"></div>
+      <div class="field"><label>Book file</label><input type="file" id="newBookFile"></div>
+    </div>
+    <div class="hint">Each line is "64-character board (*=black, O=white, -=empty) + space + side to move (* or O)".</div>
+    <button class="btn primary" id="submitBookBtn" onclick="submitNewBook()">Register</button>`;
+}
+async function submitNewBook(){
+  const name = document.getElementById('newBookName').value.trim();
+  if(!name){ toast('Enter a book name', true); return; }
+  const fileInput = document.getElementById('newBookFile');
+  if(!fileInput.files[0]){ toast('Choose a book file', true); return; }
+
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('file', fileInput.files[0]);
+
+  const btn = document.getElementById('submitBookBtn');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try{
+    await apiForm('/books', 'POST', fd);
+    document.getElementById('bookFormCard').style.display='none';
+    toast('Book registered');
+    await refreshBooks();
+    renderBookTable();
+  }catch(e){ toast('Failed to register book: '+e.message, true); }
+  finally{ btn.disabled=false; btn.textContent='Register'; }
+}
+
+/* ================= Presets ================= */
+function renderPresetTable(){
+  document.getElementById('presetTableBody').innerHTML = presets.length ? presets.map(p=>{
+    const book = p.BookId ? bookById(p.BookId) : null;
+    return `<tr>
+      <td style="font-weight:600;">${escapeHtml(p.Name)}</td>
+      <td class="mono">${p.SessionMode}</td>
+      <td class="mono">${p.MatchMode}</td>
+      <td>${p.SwapPlayer?'Yes':'No'}</td>
+      <td>${escapeHtml(book?book.Name:'—')}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button class="btn small ghost" onclick="showPresetForm('${p.Id}')">Edit</button>
+        <button class="btn small danger ghost" onclick="deletePreset('${p.Id}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6"><div class="empty">No presets yet</div></td></tr>`;
+}
+async function deletePreset(id){
+  try{ await apiDelete('/presets/'+id); toast('Preset deleted'); await refreshPresets(); renderPresetTable(); }
+  catch(e){ toast('Failed to delete preset: '+e.message, true); }
+}
+let editingPresetId = null;
+function hhmmssToSeconds(s){
+  if(!s) return 0;
+  const parts = s.split(':').map(Number);
+  while(parts.length < 3) parts.unshift(0);
+  return parts[0]*3600 + parts[1]*60 + parts[2];
+}
+function showPresetForm(presetId){
+  editingPresetId = presetId || null;
+  const p = editingPresetId ? presetById(editingPresetId) : null;
+  if(editingPresetId && !p){ toast('Preset not found', true); return; }
+
+  const card = document.getElementById('presetFormCard');
+  card.style.display='block';
+  const noClock = !!p && !p.TimeControlCommon;
+  const [ini, inc, extra] = p && p.TimeControlCommon ? p.TimeControlCommon.split('/') : ['00:10:00','00:00:05','00:00:00'];
+  card.innerHTML = `
+    <h3>${p ? 'Edit match preset' : 'Create a match preset'}</h3>
+    <div class="field"><label>Preset name</label><input id="newPresetName" placeholder="e.g. Standard · Swap Colors" value="${p?escapeHtml(p.Name):''}"></div>
+    <div class="grid-3">
+      <div class="field"><label>Session mode</label>
+        <select id="newPresetSession"><option value="StatefulEngine">StatefulEngine</option><option value="StatelessEngine">StatelessEngine</option></select>
+      </div>
+      <div class="field"><label>Match mode</label>
+        <select id="newPresetMatch"><option value="Normal">Normal</option><option value="Synchro">Synchro</option></select>
+      </div>
+      <div class="field"><label>Book</label>
+        <select id="newPresetBook"><option value="">None</option>${books.map(b=>`<option value="${b.Id}">${escapeHtml(b.Name)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="field"><label>Swap colors (SwapPlayer)</label>
+        <select id="newPresetSwap"><option value="true">Yes</option><option value="false">No</option></select>
+      </div>
+      <div class="field"><label>Use same position when swapping</label>
+        <select id="newPresetSamePos"><option value="true">Yes</option><option value="false">No</option></select>
+      </div>
+      <div class="field"><label>Shuffle book</label>
+        <select id="newPresetShuffle"><option value="false">No</option><option value="true">Yes</option></select>
+      </div>
+    </div>
+    <fieldset>
+      <legend>Time control</legend>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" id="newPresetNoClock" onchange="toggleNoClockFields()" style="width:auto;" ${noClock?'checked':''}>
+          No time control (engines think as long as they want — use InitialCommands like "set depth N" to bound each move instead)
+        </label>
+      </div>
+      <div id="presetClockFields" class="grid-3">
+        <div class="field"><label>Initial time (HH:MM:SS)</label><input id="newPresetTimeIni" class="mono" value="${ini}"></div>
+        <div class="field"><label>Increment (seconds/move)</label><input id="newPresetTimeInc" class="mono" value="${hhmmssToSeconds(inc)}"></div>
+        <div class="field"><label>Extra (byoyomi) time (seconds)</label><input id="newPresetTimeExtra" class="mono" value="${hhmmssToSeconds(extra)}"></div>
+      </div>
+      <div class="hint">To use different time controls per color, edit the preset again once per-color editing is available.</div>
+    </fieldset>
+    <button class="btn primary" onclick="submitPresetForm()">${p ? 'Save changes' : 'Create'}</button>
+    <button class="btn ghost" onclick="document.getElementById('presetFormCard').style.display='none'">Cancel</button>`;
+
+  document.getElementById('newPresetSession').value = p ? p.SessionMode : 'StatefulEngine';
+  document.getElementById('newPresetMatch').value = p ? p.MatchMode : 'Normal';
+  document.getElementById('newPresetBook').value = p && p.BookId ? p.BookId : '';
+  document.getElementById('newPresetSwap').value = p ? String(p.SwapPlayer) : 'true';
+  document.getElementById('newPresetSamePos').value = p ? String(p.UseSamePositionWhenSwapPlayer) : 'true';
+  document.getElementById('newPresetShuffle').value = p ? String(p.ShuffleBook) : 'false';
+  toggleNoClockFields();
+}
+function toggleNoClockFields(){
+  const noClock = document.getElementById('newPresetNoClock').checked;
+  const wrap = document.getElementById('presetClockFields');
+  wrap.style.display = noClock ? 'none' : '';
+  wrap.querySelectorAll('input').forEach(el => el.disabled = noClock);
+}
+async function submitPresetForm(){
+  const name = document.getElementById('newPresetName').value.trim();
+  if(!name){ toast('Enter a preset name', true); return; }
+
+  const noClock = document.getElementById('newPresetNoClock').checked;
+  let timeControlCommon = null;
+  if(!noClock){
+    const ini = document.getElementById('newPresetTimeIni').value || '00:00:00';
+    const incSeconds = Number(document.getElementById('newPresetTimeInc').value) || 0;
+    const extraSeconds = Number(document.getElementById('newPresetTimeExtra').value) || 0;
+    if(ini === '00:00:00' && incSeconds === 0 && extraSeconds === 0){
+      toast('A time control of all zeros makes every move an instant loss on time. Check "No time control" instead, or set a non-zero initial/increment time.', true);
+      return;
+    }
+    timeControlCommon = `${ini}/${secondsToHHMMSS(incSeconds)}/${secondsToHHMMSS(extraSeconds)}`;
+  }
+
+  const bookId = document.getElementById('newPresetBook').value || null;
+  const body = {
+    Name: name,
+    SessionMode: document.getElementById('newPresetSession').value,
+    MatchMode: document.getElementById('newPresetMatch').value,
+    SwapPlayer: document.getElementById('newPresetSwap').value === 'true',
+    UseSamePositionWhenSwapPlayer: document.getElementById('newPresetSamePos').value === 'true',
+    ShuffleBook: document.getElementById('newPresetShuffle').value === 'true',
+    BookId: bookId,
+    TimeControlCommon: timeControlCommon,
+    TimeControlFirst: null,
+    TimeControlSecond: null,
+  };
+  try{
+    if(editingPresetId){
+      await apiJson('/presets/'+editingPresetId, 'PUT', body);
+      toast('Preset updated');
+    }else{
+      await apiJson('/presets', 'POST', body);
+      toast('Preset created');
+    }
+    document.getElementById('presetFormCard').style.display='none';
+    editingPresetId = null;
+    await refreshPresets();
+    renderPresetTable();
+  }catch(e){ toast('Failed to save preset: '+e.message, true); }
+}
+
+/* ================= History ================= */
+function renderHistoryTable(){
+  document.getElementById('historyTableBody').innerHTML = historyEntries.length ? historyEntries.map(h=>`
+    <tr>
+      <td class="mono" style="color:var(--text-dim)">${fmtDate(h.StartedAt)}</td>
+      <td><a href="#" onclick="openHistoryModal('${h.Id}');return false;" style="font-weight:600;">${escapeHtml(h.Engine0Name)} <span style="color:var(--text-dim);font-weight:400;">vs</span> ${escapeHtml(h.Engine1Name)}</a></td>
+      <td>${escapeHtml(h.PresetName)}</td>
+      <td class="mono">${h.Matches}</td>
+      <td class="mono">${escapeHtml(h.Status)}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <a class="btn small ghost" href="${API}/history/${h.Id}/stats.json" target="_blank" download>JSON</a>
+        <a class="btn small ghost" href="${API}/history/${h.Id}/record.ggf" target="_blank" download>GGF</a>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No completed matches yet</div></td></tr>`;
+}
+async function openHistoryModal(id){
+  const entry = historyEntries.find(h=>h.Id===id) || await apiGet(`/history/${id}`).catch(()=>null);
+  if(!entry){ toast('History entry not found', true); return; }
+
+  let statsData = null;
+  try{
+    const res = await fetch(`${API}/history/${id}/stats.json`);
+    if(res.ok) statsData = await res.json();
+  }catch{ /* ignore */ }
+
+  let body;
+  if(!statsData){
+    body = `<div class="hint">Stats are not available yet${entry.ErrorMessage ? ': '+escapeHtml(entry.ErrorMessage) : (entry.Status==='Running' ? ' (match still running).' : '.')}</div>`;
+  } else if(Array.isArray(statsData)){
+    const [p0, p1] = statsData;
+    const rate = p => (p.TotalWinRate*100).toFixed(1);
+    body = `
+      <div class="grid-2">
+        <div class="card" style="margin:0;">
+          <h3><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(p0.Label)}</h3>
+          <div class="kv">
+            <dt>W / L / D</dt><dd>${p0.TotalWinCount} / ${p0.TotalLossCount} / ${p0.TotalDrawCount}</dd>
+            <dt>Win rate</dt><dd>${rate(p0)}%</dd>
+            <dt>Net margin</dt><dd>${p0.TotalGainedScore>0?'+':''}${p0.TotalGainedScore}</dd>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <h3><span class="disc w" style="margin-right:6px;"></span>${escapeHtml(p1.Label)}</h3>
+          <div class="kv">
+            <dt>W / L / D</dt><dd>${p1.TotalWinCount} / ${p1.TotalLossCount} / ${p1.TotalDrawCount}</dd>
+            <dt>Win rate</dt><dd>${rate(p1)}%</dd>
+            <dt>Net margin</dt><dd>${p1.TotalGainedScore>0?'+':''}${p1.TotalGainedScore}</dd>
+          </div>
+        </div>
+      </div>`;
+  } else if(statsData.MatchStats){
+    const m = statsData.MatchStats;
+    body = `
+      <div class="hint" style="margin-bottom:12px;">Synchro mode pairs the same position played with colors reversed into one match, and decides the match winner by combined disc-count margin. The breakdown below is per match, not per game.</div>
+      <div class="grid-2">
+        <div class="card" style="margin:0;">
+          <h3><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(m.Label0)}</h3>
+          <div class="kv">
+            <dt>Match wins</dt><dd>${m.MatchWinCount[0]}</dd>
+            <dt>Win rate</dt><dd>${(m.Player0MatchWinRate*100).toFixed(1)}%</dd>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <h3><span class="disc w" style="margin-right:6px;"></span>${escapeHtml(m.Label1)}</h3>
+          <div class="kv">
+            <dt>Match wins</dt><dd>${m.MatchWinCount[1]}</dd>
+            <dt>Win rate</dt><dd>${(m.Player1MatchWinRate*100).toFixed(1)}%</dd>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Match statistics (MatchStats)</h3>
+        <div class="kv">
+          <dt>Drawn matches</dt><dd>${m.MatchDrawCount} <span style="color:var(--text-dim)">(${(m.MatchDrawRate*100).toFixed(1)}%)</span></dd>
+          <dt>Incomplete matches</dt><dd>${m.IncompleteMatchCount}</dd>
+          <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
+          <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
+          <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
+        </div>
+      </div>`;
+  } else {
+    body = `<div class="hint">Unrecognized stats format.</div>`;
+  }
+
+  const configSection = renderLaunchConfigSection(entry);
+
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <div class="eyebrow">${fmtDate(entry.StartedAt)} · ${escapeHtml(entry.Status)}</div>
+            <h2>${escapeHtml(entry.Engine0Name)} vs ${escapeHtml(entry.Engine1Name)}</h2>
+          </div>
+          <button class="btn small ghost" onclick="closeModal()">Close</button>
+        </div>
+        ${body}
+        ${configSection}
+        <div style="margin-top:16px;display:flex;gap:8px;">
+          <a class="btn" href="${API}/history/${id}/stats.json" target="_blank" download>Download stats JSON</a>
+          <a class="btn" href="${API}/history/${id}/record.ggf" target="_blank" download>Download game record (GGF)</a>
+        </div>
+      </div>
+    </div>`;
+}
+function renderLaunchConfigSection(entry){
+  if(!entry.Engine0Config || !entry.Engine1Config)
+    return `<div class="hint" style="margin-top:12px;">Launch configuration wasn't recorded for this match (it ran before this feature was added).</div>`;
+
+  const engineCard = (name, cfg) => `
+    <div class="card" style="margin:0;">
+      <h3>${escapeHtml(name)}</h3>
+      <div class="kv">
+        <dt>Executable (Path)</dt><dd style="word-break:break-all;">${escapeHtml(cfg.Path)}</dd>
+        <dt>Arguments</dt><dd>${escapeHtml(cfg.Arguments) || '<span style="color:var(--text-dim)">(none)</span>'}</dd>
+        <dt>Working directory</dt><dd style="word-break:break-all;">${escapeHtml(cfg.WorkDir)}</dd>
+        <dt>Initial commands</dt><dd>${cfg.InitialCommands.length ? cfg.InitialCommands.map(escapeHtml).join('<br>') : '<span style="color:var(--text-dim)">(none)</span>'}</dd>
+      </div>
+    </div>`;
+
+  return `
+    <h3 style="margin-top:20px;">Launch configuration</h3>
+    <p class="hint" style="margin-bottom:10px;">The exact settings each engine was started with for this match (including any per-match overrides).</p>
+    <div class="grid-2">
+      ${engineCard(entry.Engine0Name, entry.Engine0Config)}
+      ${engineCard(entry.Engine1Name, entry.Engine1Config)}
+    </div>`;
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+
+/* ================= Spectate ================= */
+async function openSpectate(){
+  go('spectate');
+  try{ latestSpectateStatus = await apiGet('/spectate'); }catch(e){ /* ignore */ }
+  renderSpectateGrid();
+}
+function renderSessionCard(s){
+  let boardHtml = '';
+  for(const ch of s.Board){
+    if(ch==='*') boardHtml += `<div class="spectate-cell"><span class="disc b"></span></div>`;
+    else if(ch==='O') boardHtml += `<div class="spectate-cell"><span class="disc w"></span></div>`;
+    else boardHtml += `<div class="spectate-cell"></div>`;
+  }
+  const turnIsBlack = s.SideToMove === 'Black';
+  const turnName = turnIsBlack ? s.BlackName : s.WhiteName;
+  return `
+    <div class="spectate-card">
+      <div class="spectate-card-head">
+        <span class="session-label">Session ${s.SessionSlot}</span>
+        <span class="game-no">Game ${s.GameId + 1}</span>
+      </div>
+      <div class="spectate-players">
+        <span class="disc-pair" title="${escapeHtml(s.BlackName)}"><span class="disc b"></span><span class="name">${escapeHtml(s.BlackName)}</span><span class="side-tag">First</span></span>
+        <span class="disc-pair" title="${escapeHtml(s.WhiteName)}"><span class="disc w"></span><span class="name">${escapeHtml(s.WhiteName)}</span><span class="side-tag">Second</span></span>
+      </div>
+      <div class="spectate-meta">
+        <span class="spectate-turn" title="${escapeHtml(turnName)}"><span class="disc ${turnIsBlack?'b':'w'}"></span><span class="name">${s.IsGameOver ? 'Game over' : escapeHtml(turnName)+' to move'}</span></span>
+        <span class="spectate-tally"><span class="disc b"></span><span class="count">${s.BlackDiscs}</span>–<span class="count">${s.WhiteDiscs}</span><span class="disc w"></span></span>
+        <span class="spectate-moveno" style="color:var(--text-dim);">Move <span class="n">${s.MoveCount}</span></span>
+      </div>
+      <div class="spectate-board-wrap"><div class="spectate-board">${boardHtml}</div></div>
+    </div>`;
+}
+function renderSpectateGrid(){
+  const grid = document.getElementById('spectateGrid');
+  const status = latestSpectateStatus;
+  const titleEl = document.getElementById('spectateTitle');
+  if(!status || !status.Running){
+    titleEl.textContent = 'Spectate';
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">No match is currently running.</div>`;
+    return;
+  }
+  titleEl.textContent = `Spectate (${status.Sessions.length} session${status.Sessions.length===1?'':'s'} running · ${status.CompletedGames}/${status.TotalGames} games done)`;
+  grid.innerHTML = status.Sessions.length
+    ? status.Sessions.map(renderSessionCard).join('')
+    : `<div class="empty" style="grid-column:1/-1;">Waiting for the first move…</div>`;
+}
+
+/* ================= Theme toggle ================= */
+function applyTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  const btn = document.getElementById('themeToggle');
+  btn.classList.toggle('on', mode==='dark');
+  btn.setAttribute('aria-pressed', String(mode==='dark'));
+  document.getElementById('themeLabel').textContent = mode==='dark' ? 'Dark' : 'Light';
+}
+function toggleTheme(){
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current==='dark' ? 'light' : 'dark');
+}
+
+/* ================= Autostop toggle ================= */
+function applyAutostopUI(){
+  const btn = document.getElementById('autostopToggle');
+  btn.classList.toggle('on', settings.AutoStopWhenQueueEmpty);
+  btn.setAttribute('aria-pressed', String(settings.AutoStopWhenQueueEmpty));
+  document.getElementById('autostopIdleMinutes').value = settings.AutoStopIdleMinutes;
+  document.getElementById('historySyncCommand').value = settings.HistorySyncCommand || '';
+}
+async function toggleAutostop(){
+  const next = !settings.AutoStopWhenQueueEmpty;
+  try{
+    settings = await apiJson('/settings', 'PUT', {...settings, AutoStopWhenQueueEmpty: next});
+    applyAutostopUI();
+    toast(settings.AutoStopWhenQueueEmpty ? 'Auto-shutdown enabled' : 'Auto-shutdown disabled');
+  }catch(e){ toast('Failed to update setting: '+e.message, true); }
+}
+async function updateAutostopIdleMinutes(){
+  const minutes = Math.max(1, Number(document.getElementById('autostopIdleMinutes').value) || 15);
+  try{
+    settings = await apiJson('/settings', 'PUT', {...settings, AutoStopIdleMinutes: minutes});
+    applyAutostopUI();
+    toast('Idle threshold set to '+minutes+' min');
+  }catch(e){ toast('Failed to update setting: '+e.message, true); }
+}
+async function updateHistorySyncCommand(){
+  const cmd = document.getElementById('historySyncCommand').value.trim();
+  try{
+    settings = await apiJson('/settings', 'PUT', {...settings, HistorySyncCommand: cmd});
+    applyAutostopUI();
+    toast(cmd ? 'History sync command saved' : 'History sync disabled');
+  }catch(e){ toast('Failed to update setting: '+e.message, true); }
+}
+
+/* ================= Init ================= */
+async function init(){
+  applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  renderNav();
+  try{ settings = await apiGet('/settings'); }catch(e){ /* keep default */ }
+  applyAutostopUI();
+
+  await go('dashboard');
+
+  setInterval(pollTick, 1500);
+  setInterval(tickClock, 1000);
+}
+init();
+</script>

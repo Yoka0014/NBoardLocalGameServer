@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StartPortForwardingOnThisInstanceOnly",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": [
+        "arn:aws:ec2:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT_ID:instance/REPLACE_WITH_YOUR_INSTANCE_ID",
+        "arn:aws:ssm:REPLACE_WITH_REGION::document/AWS-StartPortForwardingSession"
+      ]
+    },
+    {
+      "Sid": "ManageOwnSessions",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:TerminateSession",
+        "ssm:ResumeSession"
+      ],
+      "Resource": "arn:aws:ssm:*:*:session/${aws:username}-*"
+    }
+  ]
+}

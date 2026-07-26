@@ -1,0 +1,278 @@
+<meta charset="utf-8">
+<title>NBoard Console — Match Results</title>
+<style>
+  :root{
+    --bg:#FAFAFA; --panel:#FFFFFF; --panel-2:#F3F4F5; --text:#16181A; --text-dim:#6B7280;
+    --line:#E5E7EA; --accent:#1E8449; --link:#2F6FED;
+    --disc-black:#17181A; --disc-white:#FEFBF3; --disc-edge:#C9C2AC;
+    --shadow: 0 1px 2px rgba(16,24,20,.04);
+    --radius: 5px;
+    --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:"Cascadia Mono","Consolas","SF Mono","Roboto Mono",monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17181A; --panel:#202224; --panel-2:#28292B; --text:#EDEDEA; --text-dim:#9A9D9C;
+      --line:#38393B; --accent:#3FA968; --link:#6EA8FE;
+      --disc-black:#0D0F10; --disc-white:#F2EFE6; --disc-edge:#4A4C4D;
+      --shadow: 0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--text); font-family:var(--font-body); font-size:14px; line-height:1.5; min-height:100vh;}
+  a{color:var(--link); text-decoration:none;} a:hover{text-decoration:underline;}
+  h1,h2,h3{font-weight:700; margin:0 0 4px; letter-spacing:-.01em;}
+  h1{font-size:22px;} h2{font-size:18px;} h3{font-size:14.5px;}
+  .mono{font-family:var(--font-mono);}
+  .wrap{max-width:960px; margin:0 auto; padding:32px 20px 60px;}
+  .eyebrow{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); font-weight:600;}
+  .sub{color:var(--text-dim); font-size:13px; margin:6px 0 22px;}
+  table{width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  th,td{padding:10px 12px; text-align:left; border-bottom:1px solid var(--line); font-size:13px;}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim); font-weight:600; background:var(--panel-2);}
+  tr:last-child td{border-bottom:none;}
+  .empty{padding:30px; text-align:center; color:var(--text-dim); font-size:13px;}
+  .btn{display:inline-block; padding:6px 11px; border-radius:var(--radius); border:1px solid var(--line); background:var(--panel); color:var(--text); font-size:12.5px;}
+  .btn:hover{background:var(--panel-2); text-decoration:none;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin:0 0 16px; box-shadow:var(--shadow);}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;}
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:13px;}
+  .kv dt{color:var(--text-dim);} .kv dd{margin:0; text-align:right;}
+  .disc{display:inline-block; width:11px; height:11px; border-radius:50%; vertical-align:-1px; border:1px solid var(--disc-edge);}
+  .disc.b{background:var(--disc-black);} .disc.w{background:var(--disc-white);}
+  .hint{font-size:11.5px; color:var(--text-dim); margin-top:4px;}
+  .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; z-index:10;}
+  .modal{background:var(--bg); border-radius:8px; padding:22px; max-width:640px; width:100%;}
+  .modal-head{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:12px;}
+  .banner{background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius); padding:10px 14px; font-size:12px; color:var(--text-dim); margin-bottom:20px;}
+  .wake-box{display:flex; align-items:center; justify-content:space-between; gap:14px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 16px; margin-bottom:20px;}
+  .wake-status{font-size:12.5px; color:var(--text-dim);}
+  .wake-status .dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; background:var(--text-dim);}
+  .wake-status.running .dot{background:var(--accent);}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">NBoard Console</div>
+  <h1>Match Results</h1>
+  <div class="sub">Read-only mirror of completed matches — no live match server required to browse these results.</div>
+  <div class="wake-box" id="wakeBox" style="display:none;">
+    <div>
+      <div style="font-weight:600;font-size:13.5px;">Start a new match</div>
+      <div class="wake-status" id="wakeStatus"><span class="dot"></span>Checking server state…</div>
+    </div>
+    <button class="btn" id="wakeBtn" onclick="wakeServer()">Wake match server</button>
+  </div>
+  <div class="banner" id="staleBanner" style="display:none;"></div>
+
+  <table>
+    <thead><tr><th>Date</th><th>Matchup</th><th>Preset</th><th>Matches</th><th>Status</th><th></th></tr></thead>
+    <tbody id="tableBody"><tr><td colspan="6"><div class="empty">Loading…</div></td></tr></tbody>
+  </table>
+</div>
+<div id="modalRoot"></div>
+
+<script src="config.js" onerror="window.WAKE_CONFIG={functionUrl:'',token:''}"></script>
+<script>
+let entries = [];
+
+/* ================= Wake EC2 (optional, see config.js) ================= */
+function wakeUrl(action){
+  const cfg = window.WAKE_CONFIG || {};
+  if(!cfg.functionUrl) return null;
+  const url = new URL(cfg.functionUrl);
+  url.searchParams.set('action', action);
+  if(cfg.token) url.searchParams.set('token', cfg.token);
+  return url.toString();
+}
+async function refreshWakeStatus(){
+  const url = wakeUrl('status');
+  if(!url){ document.getElementById('wakeBox').style.display='none'; return; }
+  document.getElementById('wakeBox').style.display='flex';
+
+  const statusEl = document.getElementById('wakeStatus');
+  try{
+    const res = await fetch(url);
+    const data = await res.json();
+    const running = data.state === 'running';
+    statusEl.className = 'wake-status' + (running ? ' running' : '');
+    statusEl.innerHTML = `<span class="dot"></span>Server is ${escapeHtml(data.state || 'unknown')}` +
+      (running ? ' — run wake-and-connect.ps1 to open it.' : '.');
+    document.getElementById('wakeBtn').disabled = running;
+  }catch(e){
+    statusEl.innerHTML = `<span class="dot"></span>Could not check server state: ${escapeHtml(e.message)}`;
+  }
+}
+async function wakeServer(){
+  const url = wakeUrl('start');
+  if(!url) return;
+  const btn = document.getElementById('wakeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  try{
+    await fetch(url);
+    document.getElementById('wakeStatus').innerHTML = '<span class="dot"></span>Start requested — this can take a minute or two. Once running, run wake-and-connect.ps1 to open it.';
+    setTimeout(refreshWakeStatus, 15000);
+  }catch(e){
+    document.getElementById('wakeStatus').textContent = 'Failed to request start: ' + e.message;
+  }finally{
+    btn.textContent = 'Wake match server';
+  }
+}
+
+function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso){ return iso ? iso.slice(0,10) : '—'; }
+
+async function load(){
+  let res;
+  try{
+    res = await fetch('history-index.json', {cache:'no-store'});
+  }catch(e){
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="6"><div class="empty">Could not load history-index.json: ${escapeHtml(e.message)}</div></td></tr>`;
+    return;
+  }
+  if(!res.ok){
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="6"><div class="empty">history-index.json not found (HTTP ${res.status}). Has a match completed yet?</div></td></tr>`;
+    return;
+  }
+  entries = await res.json();
+
+  const lastMod = res.headers.get('last-modified');
+  if(lastMod){
+    const banner = document.getElementById('staleBanner');
+    banner.style.display = 'block';
+    banner.textContent = `Last synced: ${lastMod}. This page mirrors completed matches only — it doesn't reflect a match currently in progress.`;
+  }
+
+  render();
+  refreshWakeStatus();
+}
+
+function render(){
+  document.getElementById('tableBody').innerHTML = entries.length ? entries.map(h=>`
+    <tr>
+      <td class="mono" style="color:var(--text-dim)">${fmtDate(h.StartedAt)}</td>
+      <td><a href="#" onclick="openDetail('${h.Id}');return false;" style="font-weight:600;">${escapeHtml(h.Engine0Name)} <span style="color:var(--text-dim);font-weight:400;">vs</span> ${escapeHtml(h.Engine1Name)}</a></td>
+      <td>${escapeHtml(h.PresetName)}</td>
+      <td class="mono">${h.Matches}</td>
+      <td class="mono">${escapeHtml(h.Status)}</td>
+      <td style="text-align:right;white-space:nowrap;">
+        <a class="btn" href="${h.Id}/stats.json" target="_blank" download>JSON</a>
+        <a class="btn" href="${h.Id}/record.ggf" target="_blank" download>GGF</a>
+      </td>
+    </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No completed matches yet</div></td></tr>`;
+}
+
+function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+
+async function openDetail(id){
+  const entry = entries.find(h=>h.Id===id);
+  if(!entry) return;
+
+  let statsData = null;
+  try{
+    const res = await fetch(`${id}/stats.json`, {cache:'no-store'});
+    if(res.ok) statsData = await res.json();
+  }catch{ /* ignore */ }
+
+  let body;
+  if(!statsData){
+    body = `<div class="hint">Stats are not available${entry.ErrorMessage ? ': '+escapeHtml(entry.ErrorMessage) : '.'}</div>`;
+  } else if(Array.isArray(statsData)){
+    const [p0, p1] = statsData;
+    const rate = p => (p.TotalWinRate*100).toFixed(1);
+    body = `
+      <div class="grid-2">
+        <div class="card" style="margin:0;">
+          <h3><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(p0.Label)}</h3>
+          <div class="kv">
+            <dt>W / L / D</dt><dd>${p0.TotalWinCount} / ${p0.TotalLossCount} / ${p0.TotalDrawCount}</dd>
+            <dt>Win rate</dt><dd>${rate(p0)}%</dd>
+            <dt>Net margin</dt><dd>${p0.TotalGainedScore>0?'+':''}${p0.TotalGainedScore}</dd>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <h3><span class="disc w" style="margin-right:6px;"></span>${escapeHtml(p1.Label)}</h3>
+          <div class="kv">
+            <dt>W / L / D</dt><dd>${p1.TotalWinCount} / ${p1.TotalLossCount} / ${p1.TotalDrawCount}</dd>
+            <dt>Win rate</dt><dd>${rate(p1)}%</dd>
+            <dt>Net margin</dt><dd>${p1.TotalGainedScore>0?'+':''}${p1.TotalGainedScore}</dd>
+          </div>
+        </div>
+      </div>`;
+  } else if(statsData.MatchStats){
+    const m = statsData.MatchStats;
+    body = `
+      <div class="hint" style="margin-bottom:12px;">Synchro mode pairs the same position played with colors reversed into one match, and decides the match winner by combined disc-count margin. The breakdown below is per match, not per game.</div>
+      <div class="grid-2">
+        <div class="card" style="margin:0;">
+          <h3><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(m.Label0)}</h3>
+          <div class="kv">
+            <dt>Match wins</dt><dd>${m.MatchWinCount[0]}</dd>
+            <dt>Win rate</dt><dd>${(m.Player0MatchWinRate*100).toFixed(1)}%</dd>
+          </div>
+        </div>
+        <div class="card" style="margin:0;">
+          <h3><span class="disc w" style="margin-right:6px;"></span>${escapeHtml(m.Label1)}</h3>
+          <div class="kv">
+            <dt>Match wins</dt><dd>${m.MatchWinCount[1]}</dd>
+            <dt>Win rate</dt><dd>${(m.Player1MatchWinRate*100).toFixed(1)}%</dd>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Match statistics (MatchStats)</h3>
+        <div class="kv">
+          <dt>Drawn matches</dt><dd>${m.MatchDrawCount} <span style="color:var(--text-dim)">(${(m.MatchDrawRate*100).toFixed(1)}%)</span></dd>
+          <dt>Incomplete matches</dt><dd>${m.IncompleteMatchCount}</dd>
+          <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
+          <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
+          <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
+        </div>
+      </div>`;
+  } else {
+    body = `<div class="hint">Unrecognized stats format.</div>`;
+  }
+
+  const configSection = renderLaunchConfigSection(entry);
+
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <div class="eyebrow">${fmtDate(entry.StartedAt)} · ${escapeHtml(entry.Status)}</div>
+            <h2>${escapeHtml(entry.Engine0Name)} vs ${escapeHtml(entry.Engine1Name)}</h2>
+          </div>
+          <button class="btn" onclick="closeModal()">Close</button>
+        </div>
+        ${body}
+        ${configSection}
+        <div style="margin-top:16px;display:flex;gap:8px;">
+          <a class="btn" href="${id}/stats.json" target="_blank" download>Download stats JSON</a>
+          <a class="btn" href="${id}/record.ggf" target="_blank" download>Download game record (GGF)</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderLaunchConfigSection(entry){
+  if(!entry.Engine0Config || !entry.Engine1Config)
+    return `<div class="hint" style="margin-top:12px;">Launch configuration wasn't recorded for this match.</div>`;
+
+  const engineCard = (name, cfg) => `
+    <div class="card" style="margin:0;">
+      <h3>${escapeHtml(name)}</h3>
+      <div class="kv">
+        <dt>Executable (Path)</dt><dd style="word-break:break-all;">${escapeHtml(cfg.Path)}</dd>
+        <dt>Arguments</dt><dd>${escapeHtml(cfg.Arguments) || '<span style="color:var(--text-dim)">(none)</span>'}</dd>
+        <dt>Working directory</dt><dd style="word-break:break-all;">${escapeHtml(cfg.WorkDir)}</dd>
+        <dt>Initial commands</dt><dd>${cfg.InitialCommands.length ? cfg.InitialCommands.map(escapeHtml).join('<br>') : '<span style="color:var(--text-dim)">(none)</span>'}</dd>
+      </div>
+    </div>`;
+
+  return `<div class="grid-2">${engineCard(entry.Engine0Name, entry.Engine0Config)}${engineCard(entry.Engine1Name, entry.Engine1Config)}</div>`;
+}
+
+load();
+</script>

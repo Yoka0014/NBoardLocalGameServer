@@ -174,7 +174,21 @@ namespace NBoardLocalGameServer.Engine
             _thinkCts?.Cancel();
 
             if (!_quit)
-                throw new EngineStoppedUnexpectedlyException(_process.Info);
+            {
+                // NOTE: this handler runs on Process.Exited's callback thread (a raw ThreadPool thread,
+                // not part of any async call chain), so throwing here would be an unhandled exception on
+                // that thread — which crashes the entire process, taking down every other match/session
+                // with it, not just this one engine's game. Log instead and let the failure surface
+                // through the normal async path: cancelling _thinkCts above makes any in-progress
+                // ThinkAsync() return BoardCoordinate.Null, which GameSession.Start() already turns into
+                // a graceful EngineReturnedIllegalMoveException; if the engine died before/between
+                // moves, the next awaited response (e.g. CheckConnectionAsync's ping) times out into
+                // EngineConnectionException instead. Both are already handled by GameServer.StartSession's
+                // catch (EngineException) without crashing anything else.
+                var ex = new EngineStoppedUnexpectedlyException(_process.Info);
+                Console.Error.WriteLine(ex.Message);
+                DebugOut.WriteLine(ex.Message);
+            }
         }
     }
 }

@@ -143,12 +143,12 @@ namespace NBoardLocalGameServer
             }
             else if (strParts.Length == 2)
             {
-                if (!int.TryParse(strParts[1], out mm) || !int.TryParse(strParts[2], out ss))
+                if (!int.TryParse(strParts[0], out mm) || !int.TryParse(strParts[1], out ss))
                     return false;
             }
             else
             {
-                if (!int.TryParse(strParts[2], out ss))
+                if (!int.TryParse(strParts[0], out ss))
                     return false;
             }
 
@@ -165,6 +165,12 @@ namespace NBoardLocalGameServer
         public GameClockConfig Config { get; } = config;
         public GameClockStatus Status { get; private set; } = GameClockStatus.UsingInitialTime;
         public bool IsRunning { get; private set; }
+
+        /// <summary>
+        /// SoftTimeout/HardTimeoutのどちらかであればtrue．
+        /// GameClockStatus.Timeoutはビットフラグの組み合わせなので，Statusと直接==で比較しても真になることはない．
+        /// </summary>
+        public bool IsTimedOut => (Status & GameClockStatus.Timeout) != 0;
 
         public event EventHandler<GameClockStatus>? StatusChanged;
 
