@@ -568,6 +568,11 @@ function zFromWinRate(s, d, n){
   if(variance<=0) return null;
   return (s - 0.5) / Math.sqrt(variance / n);
 }
+// Player0MatchWinRate gives zero credit for draws, so it centers around (1-drawRate)/2, not 0.5 —
+// wrong input for the Elo/significance formulas below, which assume 0.5 = equal strength. This
+// reconstructs the actual score (draws worth 0.5) for stats.json written before Player0MatchScore
+// existed on the backend.
+function matchScore0(m){ return m.TotalMatchCount===0 ? 0 : (m.MatchWinCount[0] + m.MatchDrawCount*0.5) / m.TotalMatchCount; }
 function gamesNeededFromWinRate(s, d){
   if(s==null || d==null) return null;
   const variance = (1 - d) / 4;
@@ -1491,13 +1496,13 @@ async function openHistoryModal(id){
           <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
           <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
           <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
-          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(m.Player0MatchWinRate))}</dd>
+          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m)))}</dd>
         </div>
       </div>
       ${renderSignificanceCard(
-        m.Label0, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(m.Player0MatchWinRate, m.MatchDrawRate),
-        m.Label1, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(m.Player0MatchWinRate, m.MatchDrawRate),
-        m.SignificanceZForPlayer0!=null ? m.SignificanceZForPlayer0 : zFromWinRate(m.Player0MatchWinRate, m.MatchDrawRate, m.TotalMatchCount),
+        m.Label0, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(matchScore0(m), m.MatchDrawRate),
+        m.Label1, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(matchScore0(m), m.MatchDrawRate),
+        m.SignificanceZForPlayer0!=null ? m.SignificanceZForPlayer0 : zFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount),
         'matches')}`;
   } else {
     body = `<div class="hint">Unrecognized stats format.</div>`;
@@ -1599,7 +1604,7 @@ function renderSpectateLiveStats(status){
       </div>`;
   } else if(stats.MatchStats){
     const m = stats.MatchStats;
-    const eloVal = m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(m.Player0MatchWinRate);
+    const eloVal = m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m));
     body = `
       <div class="kv" style="grid-template-columns:auto 1fr auto 1fr;">
         <dt><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(m.Label0)}</dt><dd>${m.MatchWinCount[0]} match wins · ${(m.Player0MatchWinRate*100).toFixed(1)}%</dd>

@@ -64,11 +64,12 @@ namespace NBoardLocalGameServer
         public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
     }
 
-    internal class GameServer(GameServerConfig config, PlayerConfig playerConfig0, PlayerConfig playerConfig1, string gameRecordPath, string playerStatsPath, int maxSessions, GameClockConfig? player0Clock = null, GameClockConfig? player1Clock = null)
+    internal class GameServer(GameServerConfig config, PlayerConfig playerConfig0, PlayerConfig playerConfig1, string gameRecordPath, string playerStatsPath, int maxSessions, GameClockConfig? player0Clock = null, GameClockConfig? player1Clock = null, string? player0DisplayName = null, string? player1DisplayName = null)
     {
         readonly GameServerConfig _config = config;
         readonly PlayerConfig[] _playerConfigs = [playerConfig0, playerConfig1];
         readonly GameClockConfig?[] _clockConfigs = [player0Clock, player1Clock];
+        readonly string?[] _displayNameOverrides = [player0DisplayName, player1DisplayName];
         readonly string _gameRecordPath = gameRecordPath;
         readonly string _playerStatsPath = playerStatsPath;
         readonly int _maxSessions = maxSessions;
@@ -186,7 +187,7 @@ namespace NBoardLocalGameServer
             var isSynchro = _config.MatchMode == MatchMode.Synchro;
             var numGames = numMatches * (isSynchro ? 2 : 1);
             TotalGameCount = numGames;
-            var matchStats = isSynchro ? new MatchStats(players[0].Name, players[1].Name) : null;
+            var matchStats = isSynchro ? new MatchStats(players[0].DisplayName, players[1].DisplayName) : null;
             _players = players;
             _matchStats = matchStats;
 
@@ -449,7 +450,7 @@ namespace NBoardLocalGameServer
                 for (var i = 0; i < 2; i++)
                 {
                     Console.WriteLine($"Starting {_maxSessions} engines for player {i + 1}...");
-                    players[i] = await Player.CreatePlayerAsync(_playerConfigs[i], _maxSessions);
+                    players[i] = await Player.CreatePlayerAsync(_playerConfigs[i], _maxSessions, _displayNameOverrides[i]);
                     Console.WriteLine("Done");
                 }
             }

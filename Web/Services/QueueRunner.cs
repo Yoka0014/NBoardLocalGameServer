@@ -166,7 +166,7 @@ namespace NBoardLocalGameServer.Web.Services
             // can write stats.json/record.ggf there directly — no temp file/move step needed.
             var server = new GameServer(run.ServerConfig, run.Player0, run.Player1,
                 historyStore.RecordPath(matchId), historyStore.StatsPath(matchId),
-                entry.Sessions, run.Clock0, run.Clock1);
+                entry.Sessions, run.Clock0, run.Clock1, run.Engine0Name, run.Engine1Name);
 
             _currentServer = server;
             _currentMatchId = matchId;
