@@ -453,6 +453,16 @@
             <h1>History</h1>
             <p>Download stats as JSON or game records as GGF. Click a row to see the breakdown.</p>
           </div>
+          <div class="field" style="margin:0;min-width:160px;">
+            <label>Status</label>
+            <select id="historyStatusFilter" onchange="renderHistoryTable()">
+              <option value="">All</option>
+              <option value="Completed">Completed</option>
+              <option value="Running">Running</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Failed">Failed</option>
+            </select>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -1305,7 +1315,9 @@ async function submitPresetForm(){
 
 /* ================= History ================= */
 function renderHistoryTable(){
-  document.getElementById('historyTableBody').innerHTML = historyEntries.length ? historyEntries.map(h=>`
+  const filter = document.getElementById('historyStatusFilter').value;
+  const rows = filter ? historyEntries.filter(h => h.Status === filter) : historyEntries;
+  document.getElementById('historyTableBody').innerHTML = rows.length ? rows.map(h=>`
     <tr>
       <td class="mono" style="color:var(--text-dim)">${fmtDate(h.StartedAt)}</td>
       <td><a href="#" onclick="openHistoryModal('${h.Id}');return false;" style="font-weight:600;">${escapeHtml(h.Engine0Name)} <span style="color:var(--text-dim);font-weight:400;">vs</span> ${escapeHtml(h.Engine1Name)}</a></td>
@@ -1316,7 +1328,7 @@ function renderHistoryTable(){
         <a class="btn small ghost" href="${API}/history/${h.Id}/stats.json" target="_blank" download>JSON</a>
         <a class="btn small ghost" href="${API}/history/${h.Id}/record.ggf" target="_blank" download>GGF</a>
       </td>
-    </tr>`).join('') : `<tr><td colspan="6"><div class="empty">No completed matches yet</div></td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="6"><div class="empty">${filter ? 'No matches with status “'+escapeHtml(filter)+'”' : 'No completed matches yet'}</div></td></tr>`;
 }
 async function openHistoryModal(id){
   const entry = historyEntries.find(h=>h.Id===id) || await apiGet(`/history/${id}`).catch(()=>null);
