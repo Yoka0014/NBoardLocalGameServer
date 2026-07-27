@@ -80,6 +80,11 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
+        /// PlayerStats.ConfidenceLevelのマッチ単位版．
+        /// </summary>
+        public double? ConfidenceLevelForPlayer0 => SignificanceZForPlayer0 is { } z ? NormalDistribution.TwoSidedConfidence(z) : null;
+
+        /// <summary>
         /// PlayerStats.GamesNeededFor95PctSignificanceのマッチ単位版．
         /// </summary>
         public int? MatchesNeededFor95PctSignificance

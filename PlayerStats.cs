@@ -139,11 +139,18 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
+        /// SignificanceZに対応する, 両側検定での信頼度(0〜1). 例えばz=1.28ならおよそ0.80(80%)．
+        /// SignificanceZがnullの場合はnull．
+        /// </summary>
+        [JsonPropertyOrder(21)]
+        public double? ConfidenceLevel => SignificanceZ is { } z ? NormalDistribution.TwoSidedConfidence(z) : null;
+
+        /// <summary>
         /// 現在の得点率・引き分け率をそのまま維持したと仮定した場合に, 両側5%水準で統計的有意と
         /// 言えるようになるまでに必要な総対局数の目安(切り上げ)．既に有意な場合や, 得点率がちょうど
         /// 50%(差の検出に無限大の対局数を要する)の場合はnull．
         /// </summary>
-        [JsonPropertyOrder(21)]
+        [JsonPropertyOrder(22)]
         public int? GamesNeededFor95PctSignificance
         {
             get

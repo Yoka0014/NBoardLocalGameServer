@@ -580,28 +580,43 @@ function gamesNeededFromWinRate(s, d){
   if(variance<=0 || deviation<=0) return null;
   return Math.ceil(variance * Math.pow(1.96 / deviation, 2));
 }
+// Standard normal CDF via the Abramowitz & Stegun 7.1.26 erf approximation (matches
+// NormalDistribution.cs on the backend, max error ~1.5e-7) — used as a fallback for stats.json
+// written before ConfidenceLevel existed, and to double-check backend-provided values.
+function erf(x){
+  const sign = x<0?-1:1; x=Math.abs(x);
+  const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+  const t=1/(1+p*x);
+  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+function normalCdf(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }
+// Confidence level (0-1) for a two-sided test at this z. E.g. z=1.96 -> ~0.95.
+function twoSidedConfidence(z){ return z==null ? null : 2*normalCdf(Math.abs(z))-1; }
 // z-score against the "equal strength" null hypothesis (two-sided). Bands match common convention:
 // |z|>=1.96 -> 95%, >=2.576 -> 99%, >=3.291 -> 99.9%.
-function significanceLabel(z, unitsNeeded, unitWord){
+function significanceLabel(z, confidence, unitsNeeded, unitWord){
   if(z==null) return 'Not enough data';
+  const pct = (confidence*100).toFixed(1);
   const az = Math.abs(z);
   let level = null;
   if(az>=3.291) level = '99.9%';
   else if(az>=2.576) level = '99%';
   else if(az>=1.96) level = '95%';
-  if(level) return `Significant (${level} confidence, z=${z.toFixed(2)})`;
-  return `Not yet significant (z=${z.toFixed(2)})` + (unitsNeeded!=null ? ` — ~${unitsNeeded.toLocaleString()} ${unitWord||'games'} needed at this rate` : '');
+  if(level) return `Significant — ${pct}% confidence (past the ${level} threshold, z=${z.toFixed(2)})`;
+  return `Not yet significant — ${pct}% confidence (z=${z.toFixed(2)})` + (unitsNeeded!=null ? ` — ~${unitsNeeded.toLocaleString()} ${unitWord||'games'} needed for 95%` : '');
 }
 // z is always from label0's perspective (positive = label0 favored). Renders a shared card (not
 // per-player) since significance describes the comparison as a whole, not each side individually.
-function renderSignificanceCard(label0, unitsNeeded0, label1, unitsNeeded1, z, unitWord){
+function renderSignificanceCard(label0, unitsNeeded0, label1, unitsNeeded1, z, confidence, unitWord){
   let row;
   if(z==null){
     row = `<dt>Result</dt><dd>Not enough data</dd>`;
   }else{
     const favoredLabel = z>=0 ? label0 : label1;
     const unitsNeeded = z>=0 ? unitsNeeded0 : unitsNeeded1;
-    row = `<dt>${escapeHtml(favoredLabel)} favored</dt><dd>${significanceLabel(Math.abs(z), unitsNeeded, unitWord)}</dd>`;
+    const conf = confidence!=null ? confidence : twoSidedConfidence(z);
+    row = `<dt>${escapeHtml(favoredLabel)} favored</dt><dd>${significanceLabel(Math.abs(z), conf, unitsNeeded, unitWord)}</dd>`;
   }
   return `
     <div class="card">
@@ -1467,6 +1482,7 @@ async function openHistoryModal(id){
         p0.Label, p0.GamesNeededFor95PctSignificance!=null ? p0.GamesNeededFor95PctSignificance : gamesNeededFromWinRate(p0.TotalWinRate, p0.TotalDrawRate),
         p1.Label, p1.GamesNeededFor95PctSignificance!=null ? p1.GamesNeededFor95PctSignificance : gamesNeededFromWinRate(p1.TotalWinRate, p1.TotalDrawRate),
         p0.SignificanceZ!=null ? p0.SignificanceZ : zFromWinRate(p0.TotalWinRate, p0.TotalDrawRate, p0.TotalGameCount),
+        p0.ConfidenceLevel,
         'games')}`;
   } else if(statsData.MatchStats){
     const m = statsData.MatchStats;
@@ -1503,6 +1519,7 @@ async function openHistoryModal(id){
         m.Label0, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(matchScore0(m), m.MatchDrawRate),
         m.Label1, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(matchScore0(m), m.MatchDrawRate),
         m.SignificanceZForPlayer0!=null ? m.SignificanceZForPlayer0 : zFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount),
+        m.ConfidenceLevelForPlayer0,
         'matches')}`;
   } else {
     body = `<div class="hint">Unrecognized stats format.</div>`;
