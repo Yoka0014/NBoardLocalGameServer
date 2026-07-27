@@ -73,6 +73,7 @@ namespace NBoardLocalGameServer
         readonly string _playerStatsPath = playerStatsPath;
         readonly int _maxSessions = maxSessions;
         readonly ConcurrentDictionary<int, GameSession> _activeSessions = new();
+        readonly ConcurrentDictionary<int, bool> _blackIsPlayerZero = new();
         int _completedGameCount;
         CancellationTokenSource? _cts;
 
@@ -110,6 +111,14 @@ namespace NBoardLocalGameServer
         /// per call.
         /// </summary>
         public IReadOnlyDictionary<int, GameSession> ActiveSessions => _activeSessions;
+
+        /// <summary>
+        /// For each active gameID, whether players[0] is playing Black in that game (false means
+        /// players[1] is Black). Lets callers report which *registered* engine (players[0]/[1]) is on
+        /// which side without relying on the engine's own self-reported NBoard name, which can collide
+        /// across different registrations of the same underlying engine binary.
+        /// </summary>
+        public IReadOnlyDictionary<int, bool> BlackIsPlayerZero => _blackIsPlayerZero;
 
         public async Task RunAsync(int numMatches)
         {
@@ -288,6 +297,7 @@ namespace NBoardLocalGameServer
                 };
                 session = new GameSession(_config.SessionMode, blackEngine, whiteEngine, gameInfo);
                 _activeSessions[gameID] = session;
+                _blackIsPlayerZero[gameID] = blackPlayer == players[0];
 
                 resultedGame = await session.Start(ct);
 
@@ -372,6 +382,7 @@ namespace NBoardLocalGameServer
             finally
             {
                 _activeSessions.TryRemove(gameID, out _);
+                _blackIsPlayerZero.TryRemove(gameID, out _);
                 Interlocked.Increment(ref _completedGameCount);
 
                 if(blackEngine is not null)

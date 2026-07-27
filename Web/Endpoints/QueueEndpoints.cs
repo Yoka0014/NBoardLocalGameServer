@@ -67,6 +67,8 @@ namespace NBoardLocalGameServer.Web.Endpoints
                 if (server is null)
                     return Results.Ok(new SpectateStatus(false, null, 0, 0, []));
 
+                var engineNames = runner.CurrentEngineNames;
+
                 var sessions = new List<SpectateSession>();
                 // gameID % MaxSessions gives each concurrently-active game a stable slot number for its
                 // whole lifetime (no more than MaxSessions games can ever be in flight at once, so this
@@ -83,9 +85,19 @@ namespace NBoardLocalGameServer.Web.Endpoints
                     if (finalPos is null)
                         continue;
 
+                    // Prefer the server-registered engine names (e.g. "Edax 4.6") over the engine's own
+                    // self-reported NBoard name (info.Black/WhitePlayerName) — the latter can collide
+                    // across different registrations of the same underlying engine binary.
+                    string blackName = info.BlackPlayerName, whiteName = info.WhitePlayerName;
+                    if (engineNames is { } names && server.BlackIsPlayerZero.TryGetValue(gameId, out var blackIsP0))
+                    {
+                        blackName = blackIsP0 ? names.Engine0Name : names.Engine1Name;
+                        whiteName = blackIsP0 ? names.Engine1Name : names.Engine0Name;
+                    }
+
                     var board = BuildBoardString(finalPos);
                     sessions.Add(new SpectateSession(
-                        gameId % server.MaxSessions + 1, gameId, info.BlackPlayerName, info.WhitePlayerName,
+                        gameId % server.MaxSessions + 1, gameId, blackName, whiteName,
                         info.Moves.Count, board,
                         board.Count(c => c == '*'), board.Count(c => c == 'O'),
                         finalPos.SideToMove.ToString(), finalPos.IsGameOver));

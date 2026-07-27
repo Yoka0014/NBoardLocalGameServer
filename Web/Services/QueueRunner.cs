@@ -32,6 +32,20 @@ namespace NBoardLocalGameServer.Web.Services
         public string? CurrentMatchId => _currentMatchId;
 
         /// <summary>
+        /// The registered (server-side) engine names for the currently running match, e.g. "Edax 4.6" —
+        /// distinct from the engine's own self-reported NBoard name, which can collide across different
+        /// registrations of the same underlying engine binary. Null while nothing is running.
+        /// </summary>
+        public (string Engine0Name, string Engine1Name)? CurrentEngineNames
+        {
+            get
+            {
+                var run = _currentRun;
+                return run is null ? null : (run.Engine0Name, run.Engine1Name);
+            }
+        }
+
+        /// <summary>
         /// Requests that the currently running match stop. Games still waiting for an engine to free up
         /// are cancelled immediately and discarded; any game whose engine is mid-think finishes that one
         /// move first, then also stops and is discarded (not saved to stats/record). Already-flushed
