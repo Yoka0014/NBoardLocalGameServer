@@ -92,5 +92,26 @@ namespace NBoardLocalGameServer
 
         [JsonPropertyOrder(18)]
         public int[] GainedScore { get; init; } = [0, 0];
+
+        /// <summary>
+        /// TotalWinRate（引き分けを0.5勝として計算した得点率）から推定したEloレーティング差．
+        /// 得点率が0%または100%（無敗/全敗）の場合は理論上無限大になるため, 意味のある値として
+        /// 計算できないことを示すnullを返す．
+        /// </summary>
+        [JsonPropertyOrder(19)]
+        public double? EloDiff
+        {
+            get
+            {
+                if (TotalGameCount == 0)
+                    return null;
+
+                var s = TotalWinRate;
+                if (s <= 0.0 || s >= 1.0)
+                    return null;
+
+                return 400.0 * System.Math.Log10(s / (1.0 - s));
+            }
+        }
     }
 }

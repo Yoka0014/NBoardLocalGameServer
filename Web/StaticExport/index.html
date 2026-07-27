@@ -189,6 +189,7 @@ async function openDetail(id){
   } else if(Array.isArray(statsData)){
     const [p0, p1] = statsData;
     const rate = p => (p.TotalWinRate*100).toFixed(1);
+    const eloText = p => p.EloDiff==null ? '—' : (p.EloDiff>0?'+':'') + p.EloDiff.toFixed(1);
     body = `
       <div class="grid-2">
         <div class="card" style="margin:0;">
@@ -197,6 +198,7 @@ async function openDetail(id){
             <dt>W / L / D</dt><dd>${p0.TotalWinCount} / ${p0.TotalLossCount} / ${p0.TotalDrawCount}</dd>
             <dt>Win rate</dt><dd>${rate(p0)}%</dd>
             <dt>Net margin</dt><dd>${p0.TotalGainedScore>0?'+':''}${p0.TotalGainedScore}</dd>
+            <dt>Elo diff</dt><dd>${eloText(p0)}</dd>
           </div>
         </div>
         <div class="card" style="margin:0;">
@@ -205,6 +207,7 @@ async function openDetail(id){
             <dt>W / L / D</dt><dd>${p1.TotalWinCount} / ${p1.TotalLossCount} / ${p1.TotalDrawCount}</dd>
             <dt>Win rate</dt><dd>${rate(p1)}%</dd>
             <dt>Net margin</dt><dd>${p1.TotalGainedScore>0?'+':''}${p1.TotalGainedScore}</dd>
+            <dt>Elo diff</dt><dd>${eloText(p1)}</dd>
           </div>
         </div>
       </div>`;
@@ -236,6 +239,7 @@ async function openDetail(id){
           <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
           <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
           <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
+          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${m.EloDiffForPlayer0==null ? '—' : (m.EloDiffForPlayer0>0?'+':'') + m.EloDiffForPlayer0.toFixed(1)}</dd>
         </div>
       </div>`;
   } else {

@@ -31,6 +31,25 @@ namespace NBoardLocalGameServer
         // 各マッチにおける(players[0]の合計得点 - players[1]の合計得点)の累計.
         public long TotalNetScoreForPlayer0 { get; set; }
         public double AverageNetScoreForPlayer0 => TotalMatchCount == 0 ? 0.0 : (double)TotalNetScoreForPlayer0 / TotalMatchCount;
+
+        /// <summary>
+        /// Player0MatchWinRateから推定したEloレーティング差（players[0]から見た値）．
+        /// PlayerStats.EloDiffと同様, 得点率が0%または100%の場合はnullを返す．
+        /// </summary>
+        public double? EloDiffForPlayer0
+        {
+            get
+            {
+                if (TotalMatchCount == 0)
+                    return null;
+
+                var s = Player0MatchWinRate;
+                if (s <= 0.0 || s >= 1.0)
+                    return null;
+
+                return 400.0 * System.Math.Log10(s / (1.0 - s));
+            }
+        }
     }
 
     /// <summary>
