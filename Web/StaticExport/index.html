@@ -143,6 +143,13 @@ async function wakeServer(){
 }
 
 function escapeHtml(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Fallback for stats.json written before EloDiff existed: recompute it from the win rate,
+// which has always been present. Matches PlayerStats.EloDiff/MatchStats.EloDiffForPlayer0 exactly.
+function eloFromWinRate(s){
+  if(s==null || s<=0 || s>=1) return null;
+  return 400 * Math.log10(s / (1 - s));
+}
+function fmtElo(d){ return d==null ? '—' : (d>0?'+':'') + d.toFixed(1); }
 function fmtDate(iso){ return iso ? iso.slice(0,10) : '—'; }
 
 async function load(){
@@ -205,7 +212,7 @@ async function openDetail(id){
   } else if(Array.isArray(statsData)){
     const [p0, p1] = statsData;
     const rate = p => (p.TotalWinRate*100).toFixed(1);
-    const eloText = p => p.EloDiff==null ? '—' : (p.EloDiff>0?'+':'') + p.EloDiff.toFixed(1);
+    const eloText = p => fmtElo(p.EloDiff!=null ? p.EloDiff : eloFromWinRate(p.TotalWinRate));
     body = `
       <div class="grid-2">
         <div class="card" style="margin:0;">
@@ -255,7 +262,7 @@ async function openDetail(id){
           <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
           <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
           <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
-          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${m.EloDiffForPlayer0==null ? '—' : (m.EloDiffForPlayer0>0?'+':'') + m.EloDiffForPlayer0.toFixed(1)}</dd>
+          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(m.Player0MatchWinRate))}</dd>
         </div>
       </div>`;
   } else {
