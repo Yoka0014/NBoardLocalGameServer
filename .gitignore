@@ -368,3 +368,4 @@ CLAUDE.md
 /data/
 /log.txt
 /deploy/wake-and-connect.config.json
+/tools/*.book
