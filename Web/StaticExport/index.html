@@ -151,6 +151,51 @@ function eloFromWinRate(s){
 }
 function fmtElo(d){ return d==null ? '—' : (d>0?'+':'') + d.toFixed(1); }
 function fmtDate(iso){ return iso ? iso.slice(0,10) : '—'; }
+// Same backward-compat idea as eloFromWinRate: stats.json written before SignificanceZ existed still
+// has TotalWinRate/TotalDrawRate/TotalGameCount, which is all this needs to recompute the same value.
+function zFromWinRate(s, d, n){
+  if(s==null || d==null || !n) return null;
+  const variance = (1 - d) / 4;
+  if(variance<=0) return null;
+  return (s - 0.5) / Math.sqrt(variance / n);
+}
+function gamesNeededFromWinRate(s, d){
+  if(s==null || d==null) return null;
+  const variance = (1 - d) / 4;
+  const deviation = Math.abs(s - 0.5);
+  if(variance<=0 || deviation<=0) return null;
+  return Math.ceil(variance * Math.pow(1.96 / deviation, 2));
+}
+// z-score against the "equal strength" null hypothesis (two-sided). Bands match common convention:
+// |z|>=1.96 -> 95%, >=2.576 -> 99%, >=3.291 -> 99.9%.
+function significanceLabel(z, unitsNeeded, unitWord){
+  if(z==null) return 'Not enough data';
+  const az = Math.abs(z);
+  let level = null;
+  if(az>=3.291) level = '99.9%';
+  else if(az>=2.576) level = '99%';
+  else if(az>=1.96) level = '95%';
+  if(level) return `Significant (${level} confidence, z=${z.toFixed(2)})`;
+  return `Not yet significant (z=${z.toFixed(2)})` + (unitsNeeded!=null ? ` — ~${unitsNeeded.toLocaleString()} ${unitWord||'games'} needed at this rate` : '');
+}
+// z is always from label0's perspective (positive = label0 favored). Renders a shared card (not
+// per-player) since significance describes the comparison as a whole, not each side individually.
+function renderSignificanceCard(label0, unitsNeeded0, label1, unitsNeeded1, z, unitWord){
+  let row;
+  if(z==null){
+    row = `<dt>Result</dt><dd>Not enough data</dd>`;
+  }else{
+    const favoredLabel = z>=0 ? label0 : label1;
+    const unitsNeeded = z>=0 ? unitsNeeded0 : unitsNeeded1;
+    row = `<dt>${escapeHtml(favoredLabel)} favored</dt><dd>${significanceLabel(Math.abs(z), unitsNeeded, unitWord)}</dd>`;
+  }
+  return `
+    <div class="card">
+      <h3>Statistical significance</h3>
+      <div class="hint" style="margin-bottom:8px;">Is the ${unitWord==='matches'?'match':'win rate'} gap likely real, or within the range random chance alone would produce for two equally-strong engines?</div>
+      <div class="kv">${row}</div>
+    </div>`;
+}
 
 async function load(){
   let res;
@@ -233,7 +278,12 @@ async function openDetail(id){
             <dt>Elo diff</dt><dd>${eloText(p1)}</dd>
           </div>
         </div>
-      </div>`;
+      </div>
+      ${renderSignificanceCard(
+        p0.Label, p0.GamesNeededFor95PctSignificance!=null ? p0.GamesNeededFor95PctSignificance : gamesNeededFromWinRate(p0.TotalWinRate, p0.TotalDrawRate),
+        p1.Label, p1.GamesNeededFor95PctSignificance!=null ? p1.GamesNeededFor95PctSignificance : gamesNeededFromWinRate(p1.TotalWinRate, p1.TotalDrawRate),
+        p0.SignificanceZ!=null ? p0.SignificanceZ : zFromWinRate(p0.TotalWinRate, p0.TotalDrawRate, p0.TotalGameCount),
+        'games')}`;
   } else if(statsData.MatchStats){
     const m = statsData.MatchStats;
     body = `
@@ -264,7 +314,12 @@ async function openDetail(id){
           <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
           <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(m.Player0MatchWinRate))}</dd>
         </div>
-      </div>`;
+      </div>
+      ${renderSignificanceCard(
+        m.Label0, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(m.Player0MatchWinRate, m.MatchDrawRate),
+        m.Label1, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(m.Player0MatchWinRate, m.MatchDrawRate),
+        m.SignificanceZForPlayer0!=null ? m.SignificanceZForPlayer0 : zFromWinRate(m.Player0MatchWinRate, m.MatchDrawRate, m.TotalMatchCount),
+        'matches')}`;
   } else {
     body = `<div class="hint">Unrecognized stats format.</div>`;
   }

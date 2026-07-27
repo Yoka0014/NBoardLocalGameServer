@@ -50,6 +50,49 @@ namespace NBoardLocalGameServer
                 return 400.0 * System.Math.Log10(s / (1.0 - s));
             }
         }
+
+        /// <summary>
+        /// PlayerStats.SignificanceZと同じ考え方を, マッチ単位(1マッチ=勝ち1/引き分け0.5/負け0)に
+        /// 適用したz値．players[0]から見た値．TotalMatchCountが0, またはMatchDrawRateが100%の場合はnull．
+        /// </summary>
+        public double? SignificanceZForPlayer0
+        {
+            get
+            {
+                if (TotalMatchCount == 0)
+                    return null;
+
+                var variance = (1.0 - MatchDrawRate) / 4.0;
+                if (variance <= 0.0)
+                    return null;
+
+                var se = System.Math.Sqrt(variance / TotalMatchCount);
+                return (Player0MatchWinRate - 0.5) / se;
+            }
+        }
+
+        /// <summary>
+        /// PlayerStats.GamesNeededFor95PctSignificanceのマッチ単位版．
+        /// </summary>
+        public int? MatchesNeededFor95PctSignificance
+        {
+            get
+            {
+                if (TotalMatchCount == 0)
+                    return null;
+
+                var variance = (1.0 - MatchDrawRate) / 4.0;
+                if (variance <= 0.0)
+                    return null;
+
+                var deviation = System.Math.Abs(Player0MatchWinRate - 0.5);
+                if (deviation <= 0.0)
+                    return null;
+
+                var n = variance * System.Math.Pow(1.96 / deviation, 2);
+                return (int)System.Math.Ceiling(n);
+            }
+        }
     }
 
     /// <summary>
