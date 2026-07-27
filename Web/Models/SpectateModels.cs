@@ -15,5 +15,10 @@ namespace NBoardLocalGameServer.Web.Models
         int SessionSlot, int GameId, string BlackName, string WhiteName,
         int MoveCount, string Board, int BlackDiscs, int WhiteDiscs, string SideToMove, bool IsGameOver);
 
-    internal record SpectateStatus(bool Running, string? MatchId, int TotalGames, int CompletedGames, IReadOnlyList<SpectateSession> Sessions);
+    /// <summary>
+    /// Live win/loss tallies while a match is running — same shape as the final stats.json
+    /// (PlayerStats[] for Normal, {PlayerStats, MatchStats} for Synchro) so the frontend can reuse its
+    /// existing stats-rendering logic, just updated continuously instead of only after the match ends.
+    /// </summary>
+    internal record SpectateStatus(bool Running, string? MatchId, int TotalGames, int CompletedGames, IReadOnlyList<SpectateSession> Sessions, object? LiveStats = null);
 }

@@ -103,7 +103,13 @@ namespace NBoardLocalGameServer.Web.Endpoints
                         finalPos.SideToMove.ToString(), finalPos.IsGameOver));
                 }
 
-                return Results.Ok(new SpectateStatus(true, runner.CurrentMatchId, server.TotalGameCount, server.CompletedGameCount, sessions));
+                object? liveStats = server.CurrentPlayerStats is { } playerStats
+                    ? (server.CurrentMatchStats is { } matchStats
+                        ? new SynchroStatsOutput([.. playerStats], matchStats)
+                        : playerStats)
+                    : null;
+
+                return Results.Ok(new SpectateStatus(true, runner.CurrentMatchId, server.TotalGameCount, server.CompletedGameCount, sessions, liveStats));
             });
         }
 

@@ -76,6 +76,8 @@ namespace NBoardLocalGameServer
         readonly ConcurrentDictionary<int, bool> _blackIsPlayerZero = new();
         int _completedGameCount;
         CancellationTokenSource? _cts;
+        volatile Player[]? _players;
+        volatile MatchStats? _matchStats;
 
         /// <summary>Total games this run will play (numMatches * (Synchro ? 2 : 1)). 0 until MainloopAsync starts.</summary>
         public int TotalGameCount { get; private set; }
@@ -119,6 +121,20 @@ namespace NBoardLocalGameServer
         /// across different registrations of the same underlying engine binary.
         /// </summary>
         public IReadOnlyDictionary<int, bool> BlackIsPlayerZero => _blackIsPlayerZero;
+
+        /// <summary>
+        /// Live per-player win/loss/draw tallies, readable at any time while the match runs — each
+        /// Player.Stats is updated the instant its game finishes (see StartSession), independent of
+        /// when stats are next flushed to disk. Null until MainloopAsync starts.
+        /// </summary>
+        public IReadOnlyList<PlayerStats>? CurrentPlayerStats => _players?.Select(p => p.Stats).ToArray();
+
+        /// <summary>
+        /// Live Synchro match-level tallies (win/loss by combined margin), updated as soon as each
+        /// pair of games finishes (see TrackPairStatsAsync) rather than only every 100 games. Null in
+        /// Normal mode, or before MainloopAsync starts.
+        /// </summary>
+        public MatchStats? CurrentMatchStats => _matchStats;
 
         public async Task RunAsync(int numMatches)
         {
@@ -171,9 +187,15 @@ namespace NBoardLocalGameServer
             var numGames = numMatches * (isSynchro ? 2 : 1);
             TotalGameCount = numGames;
             var matchStats = isSynchro ? new MatchStats(players[0].Name, players[1].Name) : null;
+            _players = players;
+            _matchStats = matchStats;
 
             _cts = new CancellationTokenSource();
             var games = new List<Task<GameInfo?>>();
+            // Tracks, per Synchro pair, the background task that applies that pair's result to
+            // matchStats the moment both its games finish — independent of SaveChunk, so
+            // CurrentMatchStats reflects live progress instead of only updating every 100 games.
+            var pairStatsTasks = isSynchro ? new List<Task>() : null;
             Position? pos = null;
             using var gameRecordsSw = string.IsNullOrEmpty(_gameRecordPath) ? StreamWriter.Null : new StreamWriter(_gameRecordPath, File.Exists(_gameRecordPath));
 
@@ -186,8 +208,11 @@ namespace NBoardLocalGameServer
                     {
                         var results = await Task.WhenAll(games);
                         SaveGameRecords(gameRecordsSw, results);
-                        if (matchStats is not null)
-                            UpdateMatchStats(matchStats, results);
+                        if (pairStatsTasks is not null)
+                        {
+                            await Task.WhenAll(pairStatsTasks);
+                            pairStatsTasks.Clear();
+                        }
                         SaveStats(players, matchStats);
                         games.Clear();
                     }
@@ -200,14 +225,20 @@ namespace NBoardLocalGameServer
 
                     games.Add(StartSession(i, new Position(pos!), players, players[firstIdx], players[secondIdx], _cts.Token));
 
+                    // The second game of a pair just landed in games[^1] (paired with games[^2]) —
+                    // update matchStats for this one pair as soon as both finish, rather than waiting
+                    // for a full SaveChunk or the end of the whole match.
+                    if (isSynchro && i % 2 == 1)
+                        pairStatsTasks!.Add(TrackPairStatsAsync(matchStats!, games[^2], games[^1]));
+
                     if (isSynchro || _config.SwapPlayer)
                         (firstIdx, secondIdx) = (secondIdx, firstIdx);
                 }
 
                 var finalResults = await Task.WhenAll(games);
                 SaveGameRecords(gameRecordsSw, finalResults);
-                if (matchStats is not null)
-                    UpdateMatchStats(matchStats, finalResults);
+                if (pairStatsTasks is not null)
+                    await Task.WhenAll(pairStatsTasks);
                 SaveStats(players, matchStats);
             }
             catch (OperationCanceledException)
@@ -227,8 +258,20 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
+        /// 1組の対局(2局)が両方完了し次第, その場でmatchStatsに反映する. 複数ペアが並行に完了しうる
+        /// (それぞれ別のTrackPairStatsAsync呼び出しから同時にUpdateMatchStatsを呼ぶ)ため, ロックで保護する.
+        /// これにより, CurrentMatchStatsが100局ごとの一括更新を待たずに, ペア完了ごとに最新化される.
+        /// </summary>
+        static async Task TrackPairStatsAsync(MatchStats matchStats, Task<GameInfo?> gameA, Task<GameInfo?> gameB)
+        {
+            var results = await Task.WhenAll(gameA, gameB);
+            lock (matchStats)
+                UpdateMatchStats(matchStats, results);
+        }
+
+        /// <summary>
         /// 2局を1組として, 合計石差でマッチの勝敗/引き分けを集計する.
-        /// MainloopAsyncの逐次ループからのみ呼ばれる(並行呼び出しはない)ためロック不要.
+        /// 呼び出し側(TrackPairStatsAsync、または旧来の一括更新パス)でロックを取得した上で呼ぶこと.
         /// </summary>
         static void UpdateMatchStats(MatchStats matchStats, GameInfo?[] results)
         {
