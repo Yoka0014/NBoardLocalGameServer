@@ -514,6 +514,25 @@ async function apiForm(path, method, formData){
   if(!res.ok) throw new Error(await safeText(res));
   return res.status===204 ? null : res.json();
 }
+// fetch() has no upload-progress event, so large file uploads (engine zips can be tens of MB) use
+// XMLHttpRequest instead, which reports progress via xhr.upload.onprogress.
+function uploadWithProgress(path, method, body, onProgress){
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, API+path);
+    xhr.upload.onprogress = (e) => {
+      if(e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      if(xhr.status >= 200 && xhr.status < 300)
+        resolve(xhr.status === 204 || !xhr.responseText ? null : JSON.parse(xhr.responseText));
+      else
+        reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(body);
+  });
+}
 async function apiDelete(path){
   const res = await fetch(API+path, {method:'DELETE'});
   if(!res.ok) throw new Error(await safeText(res));
@@ -1005,7 +1024,8 @@ function renderEngineDetail(e, buildLog){
         <div class="field"><label>Build working directory</label><input id="engBuildDir" class="mono" value="${escapeHtml(e.BuildWorkDir)}"></div>
         <div class="hint" style="margin-bottom:10px;">Replace the source zip if you need to update the engine's code.</div>
         <input type="file" id="engZipReplace" accept=".zip" style="margin-bottom:8px;">
-        <button class="btn small" onclick="replaceEngineZip()">Upload &amp; replace source</button>
+        <button class="btn small" id="engZipReplaceBtn" onclick="replaceEngineZip()">Upload &amp; replace source</button>
+        <span id="engZipProgress" class="hint" style="margin-left:8px;"></span>
         <div id="buildLogWrap" style="margin-top:12px;">${buildLog!=null?`<div class="buildlog">${escapeHtml(buildLog)}</div>`:''}</div>
       </div>
       <div class="card">
@@ -1045,11 +1065,21 @@ async function replaceEngineZip(){
   if(!input.files[0]){ toast('Choose a zip file first', true); return; }
   const fd = new FormData();
   fd.append('zip', input.files[0]);
+  const btn = document.getElementById('engZipReplaceBtn');
+  const progress = document.getElementById('engZipProgress');
+  btn.disabled = true;
+  progress.textContent = 'Uploading… 0%';
   try{
-    await apiForm(`/engines/${activeEngineId}/zip`, 'PUT', fd);
+    await uploadWithProgress(`/engines/${activeEngineId}/zip`, 'PUT', fd, frac => {
+      progress.textContent = frac >= 1 ? 'Extracting…' : `Uploading… ${Math.round(frac*100)}%`;
+    });
     toast('Source replaced — build status reset');
     await refreshEngineDetail();
-  }catch(e){ toast('Failed to replace source: '+e.message, true); }
+  }catch(e){
+    progress.textContent = '';
+    btn.disabled = false;
+    toast('Failed to replace source: '+e.message, true);
+  }
 }
 async function rebuildEngine(){
   const btn = document.getElementById('rebuildBtn');
@@ -1111,7 +1141,7 @@ function renderTreeNode(node){
       <span class="fmeta">${fmtSize(f.Size)}</span>
       <span class="fmeta">${fmtDate(f.Modified)}</span>
       <a class="btn small ghost" href="${API}/engines/${activeEngineId}/files/content?path=${encodeURIComponent(f.Path)}" target="_blank" download>DL</a>
-      <button class="btn small" onclick="replaceEngineFile('${f.Path.replace(/'/g,"\\'")}')">Replace</button>
+      <button class="btn small" onclick="replaceEngineFile('${f.Path.replace(/'/g,"\\'")}', this)">Replace</button>
     </div>`).join('');
   return dirHtml + fileHtml;
 }
@@ -1120,19 +1150,26 @@ function renderFileTree(files){
   if(!el) return;
   el.innerHTML = files.length ? renderTreeNode(buildFileTree(files)) : `<div class="empty">No files (source not extracted?)</div>`;
 }
-function replaceEngineFile(path){
+function replaceEngineFile(path, btn){
   const input = document.createElement('input');
   input.type = 'file';
   input.onchange = async () => {
     const file = input.files[0];
     if(!file) return;
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
     try{
-      const res = await fetch(`${API}/engines/${activeEngineId}/files/content?path=${encodeURIComponent(path)}`, {method:'PUT', body:file});
-      if(!res.ok) throw new Error(await safeText(res));
+      await uploadWithProgress(`/engines/${activeEngineId}/files/content?path=${encodeURIComponent(path)}`, 'PUT', file, frac => {
+        btn.textContent = frac >= 1 ? '…' : `${Math.round(frac*100)}%`;
+      });
       toast('File replaced');
       const files = await apiGet(`/engines/${activeEngineId}/files`);
       renderFileTree(files);
-    }catch(e){ toast('Failed to replace file: '+e.message, true); }
+    }catch(e){
+      toast('Failed to replace file: '+e.message, true);
+      btn.textContent = originalLabel;
+      btn.disabled = false;
+    }
   };
   input.click();
 }
