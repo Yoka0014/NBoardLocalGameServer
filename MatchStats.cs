@@ -60,6 +60,29 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
+        /// PlayerStats.EloDiffMargin95と同じ考え方を, マッチ単位のPlayer0MatchScoreに適用した,
+        /// EloDiffForPlayer0の両側95%信頼区間の半幅（±分）．EloDiffForPlayer0がnullになる条件
+        /// （マッチ数0, マッチ得点率が0%または100%）ではこちらもnull．
+        /// </summary>
+        public double? EloDiffMargin95ForPlayer0
+        {
+            get
+            {
+                if (TotalMatchCount == 0)
+                    return null;
+
+                var s = Player0MatchScore;
+                if (s <= 0.0 || s >= 1.0)
+                    return null;
+
+                var variance = (1.0 - MatchDrawRate) / 4.0;
+                var se = System.Math.Sqrt(variance / TotalMatchCount);
+                var derivative = 400.0 / (System.Math.Log(10.0) * s * (1.0 - s));
+                return 1.96 * se * derivative;
+            }
+        }
+
+        /// <summary>
         /// PlayerStats.SignificanceZと同じ考え方を, マッチ単位(1マッチ=勝ち1/引き分け0.5/負け0)に
         /// 適用したz値．players[0]から見た値．TotalMatchCountが0, またはMatchDrawRateが100%の場合はnull．
         /// </summary>

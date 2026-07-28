@@ -558,8 +558,26 @@ function eloFromWinRate(s){
   if(s==null || s<=0 || s>=1) return null;
   return 400 * Math.log10(s / (1 - s));
 }
-function fmtElo(d){ return d==null ? '—' : (d>0?'+':'') + d.toFixed(1); }
-function eloText(p){ return fmtElo(p.EloDiff!=null ? p.EloDiff : eloFromWinRate(p.TotalWinRate)); }
+// Same delta-method fallback as PlayerStats.EloDiffMargin95/MatchStats.EloDiffMargin95ForPlayer0,
+// for stats.json written before those existed.
+function eloMarginFromWinRate(s, d, n){
+  if(s==null || d==null || !n) return null;
+  if(s<=0 || s>=1) return null;
+  const variance = (1 - d) / 4;
+  const se = Math.sqrt(variance / n);
+  const derivative = 400 / (Math.log(10) * s * (1 - s));
+  return 1.96 * se * derivative;
+}
+function fmtElo(d, margin){
+  if(d==null) return '—';
+  const base = (d>0?'+':'') + d.toFixed(1);
+  return margin!=null ? `${base} ± ${margin.toFixed(1)}` : base;
+}
+function eloText(p){
+  const d = p.EloDiff!=null ? p.EloDiff : eloFromWinRate(p.TotalWinRate);
+  const margin = p.EloDiffMargin95!=null ? p.EloDiffMargin95 : eloMarginFromWinRate(p.TotalWinRate, p.TotalDrawRate, p.TotalGameCount);
+  return fmtElo(d, margin);
+}
 // Same backward-compat idea as eloFromWinRate: stats.json written before SignificanceZ existed still
 // has TotalWinRate/TotalDrawRate/TotalGameCount, which is all this needs to recompute the same value.
 function zFromWinRate(s, d, n){
@@ -1512,7 +1530,7 @@ async function openHistoryModal(id){
           <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
           <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
           <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
-          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m)))}</dd>
+          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m)), m.EloDiffMargin95ForPlayer0!=null ? m.EloDiffMargin95ForPlayer0 : eloMarginFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount))}</dd>
         </div>
       </div>
       ${renderSignificanceCard(
@@ -1622,12 +1640,13 @@ function renderSpectateLiveStats(status){
   } else if(stats.MatchStats){
     const m = stats.MatchStats;
     const eloVal = m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m));
+    const eloMargin = m.EloDiffMargin95ForPlayer0!=null ? m.EloDiffMargin95ForPlayer0 : eloMarginFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount);
     body = `
       <div class="kv" style="grid-template-columns:auto 1fr auto 1fr;">
         <dt><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(m.Label0)}</dt><dd>${m.MatchWinCount[0]} match wins · ${(m.Player0MatchWinRate*100).toFixed(1)}%</dd>
         <dt><span class="disc w" style="margin-right:6px;"></span>${escapeHtml(m.Label1)}</dt><dd>${m.MatchWinCount[1]} match wins · ${(m.Player1MatchWinRate*100).toFixed(1)}%</dd>
       </div>
-      <div class="hint" style="margin-top:8px;">${m.MatchDrawCount} drawn · ${m.TotalMatchCount} matches decided so far · ${escapeHtml(m.Label0)} Elo diff ${fmtElo(eloVal)}</div>`;
+      <div class="hint" style="margin-top:8px;">${m.MatchDrawCount} drawn · ${m.TotalMatchCount} matches decided so far · ${escapeHtml(m.Label0)} Elo diff ${fmtElo(eloVal, eloMargin)}</div>`;
   } else {
     wrap.innerHTML = '';
     return;

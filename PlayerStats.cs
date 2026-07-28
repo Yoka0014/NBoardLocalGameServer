@@ -115,13 +115,38 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
+        /// EloDiffの両側95%信頼区間の半幅（±分）．デルタ法で, TotalWinRateの標準誤差
+        /// SE=√(Var/N)（Varは<see cref="SignificanceZ"/>と同じ(1-引き分け率)/4）を
+        /// d(EloDiff)/ds = 400/(ln(10)*s*(1-s)) でElo単位に変換し, 1.96倍したもの．
+        /// EloDiffがnullになる条件（対局数0, 得点率が0%または100%）ではこちらもnull．
+        /// </summary>
+        [JsonPropertyOrder(20)]
+        public double? EloDiffMargin95
+        {
+            get
+            {
+                if (TotalGameCount == 0)
+                    return null;
+
+                var s = TotalWinRate;
+                if (s <= 0.0 || s >= 1.0)
+                    return null;
+
+                var variance = (1.0 - TotalDrawRate) / 4.0;
+                var se = System.Math.Sqrt(variance / TotalGameCount);
+                var derivative = 400.0 / (System.Math.Log(10.0) * s * (1.0 - s));
+                return 1.96 * se * derivative;
+            }
+        }
+
+        /// <summary>
         /// 実力互角(帰無仮説)を前提とした標準正規分布のz値．
         /// 1局のスコア(勝ち1, 引き分け0.5, 負け0)の分散はVar=(1-引き分け率)/4なので,
         /// N局の標準誤差はSE=√(Var/N). TotalWinRateの0.5からの乖離をこのSEで割った値がz．
         /// |z|が1.96以上で両側5%水準, 2.576以上で1%水準, 3.291以上で0.1%水準の統計的有意性を示す．
         /// 対局数が0, または引き分け率100%(分散0で乖離があっても定義不能)の場合はnull．
         /// </summary>
-        [JsonPropertyOrder(20)]
+        [JsonPropertyOrder(21)]
         public double? SignificanceZ
         {
             get
@@ -142,7 +167,7 @@ namespace NBoardLocalGameServer
         /// SignificanceZに対応する, 両側検定での信頼度(0〜1). 例えばz=1.28ならおよそ0.80(80%)．
         /// SignificanceZがnullの場合はnull．
         /// </summary>
-        [JsonPropertyOrder(21)]
+        [JsonPropertyOrder(22)]
         public double? ConfidenceLevel => SignificanceZ is { } z ? NormalDistribution.TwoSidedConfidence(z) : null;
 
         /// <summary>
@@ -150,7 +175,7 @@ namespace NBoardLocalGameServer
         /// 言えるようになるまでに必要な総対局数の目安(切り上げ)．既に有意な場合や, 得点率がちょうど
         /// 50%(差の検出に無限大の対局数を要する)の場合はnull．
         /// </summary>
-        [JsonPropertyOrder(22)]
+        [JsonPropertyOrder(23)]
         public int? GamesNeededFor95PctSignificance
         {
             get
