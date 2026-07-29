@@ -63,6 +63,8 @@ namespace NBoardLocalGameServer
         /// PlayerStats.EloDiffMargin95と同じ考え方を, マッチ単位のPlayer0MatchScoreに適用した,
         /// EloDiffForPlayer0の両側95%信頼区間の半幅（±分）．EloDiffForPlayer0がnullになる条件
         /// （マッチ数0, マッチ得点率が0%または100%）ではこちらもnull．
+        /// PlayerStats.EloDiffMargin95と同様, 決着マッチ数(MatchWinCountの合計)が
+        /// ExactBinomialTest.MinDecisiveGamesForNormalApprox未満のときはnullを返す．
         /// </summary>
         public double? EloDiffMargin95ForPlayer0
         {
@@ -75,6 +77,9 @@ namespace NBoardLocalGameServer
                 if (s <= 0.0 || s >= 1.0)
                     return null;
 
+                if (MatchWinCount.Sum() < ExactBinomialTest.MinDecisiveGamesForNormalApprox)
+                    return null;
+
                 var variance = (1.0 - MatchDrawRate) / 4.0;
                 var se = System.Math.Sqrt(variance / TotalMatchCount);
                 var derivative = 400.0 / (System.Math.Log(10.0) * s * (1.0 - s));
@@ -85,12 +90,17 @@ namespace NBoardLocalGameServer
         /// <summary>
         /// PlayerStats.SignificanceZと同じ考え方を, マッチ単位(1マッチ=勝ち1/引き分け0.5/負け0)に
         /// 適用したz値．players[0]から見た値．TotalMatchCountが0, またはMatchDrawRateが100%の場合はnull．
+        /// 決着マッチ数(MatchWinCountの合計)がExactBinomialTest.MinDecisiveGamesForNormalApprox未満の
+        /// 場合も, 正規近似が信頼できないためnull(ConfidenceLevelForPlayer0が代わりに厳密な値を返す)．
         /// </summary>
         public double? SignificanceZForPlayer0
         {
             get
             {
                 if (TotalMatchCount == 0)
+                    return null;
+
+                if (MatchWinCount.Sum() < ExactBinomialTest.MinDecisiveGamesForNormalApprox)
                     return null;
 
                 var variance = (1.0 - MatchDrawRate) / 4.0;
@@ -103,9 +113,26 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
-        /// PlayerStats.ConfidenceLevelのマッチ単位版．
+        /// PlayerStats.ConfidenceLevelのマッチ単位版．決着マッチ数が少ない場合は
+        /// ExactBinomialTestによる厳密な二項検定のp値から求める．
         /// </summary>
-        public double? ConfidenceLevelForPlayer0 => SignificanceZForPlayer0 is { } z ? NormalDistribution.TwoSidedConfidence(z) : null;
+        public double? ConfidenceLevelForPlayer0
+        {
+            get
+            {
+                if (TotalMatchCount == 0)
+                    return null;
+
+                if (SignificanceZForPlayer0 is { } z)
+                    return NormalDistribution.TwoSidedConfidence(z);
+
+                var decisive = MatchWinCount.Sum();
+                if (decisive == 0)
+                    return null;
+
+                return 1.0 - ExactBinomialTest.TwoSidedPValue(MatchWinCount[0], decisive);
+            }
+        }
 
         /// <summary>
         /// PlayerStats.GamesNeededFor95PctSignificanceのマッチ単位版．

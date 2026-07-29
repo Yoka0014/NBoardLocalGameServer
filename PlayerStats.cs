@@ -119,6 +119,9 @@ namespace NBoardLocalGameServer
         /// SE=√(Var/N)（Varは<see cref="SignificanceZ"/>と同じ(1-引き分け率)/4）を
         /// d(EloDiff)/ds = 400/(ln(10)*s*(1-s)) でElo単位に変換し, 1.96倍したもの．
         /// EloDiffがnullになる条件（対局数0, 得点率が0%または100%）ではこちらもnull．
+        /// このデルタ法もSignificanceZと同じ正規近似に基づくため, 決着数が
+        /// ExactBinomialTest.MinDecisiveGamesForNormalApprox未満のときは(近似が信頼できないので)
+        /// 誤った幅の狭い信頼区間を示すよりnullを返す方を選ぶ．
         /// </summary>
         [JsonPropertyOrder(20)]
         public double? EloDiffMargin95
@@ -130,6 +133,9 @@ namespace NBoardLocalGameServer
 
                 var s = TotalWinRate;
                 if (s <= 0.0 || s >= 1.0)
+                    return null;
+
+                if (TotalWinCount + TotalLossCount < ExactBinomialTest.MinDecisiveGamesForNormalApprox)
                     return null;
 
                 var variance = (1.0 - TotalDrawRate) / 4.0;
@@ -144,7 +150,10 @@ namespace NBoardLocalGameServer
         /// 1局のスコア(勝ち1, 引き分け0.5, 負け0)の分散はVar=(1-引き分け率)/4なので,
         /// N局の標準誤差はSE=√(Var/N). TotalWinRateの0.5からの乖離をこのSEで割った値がz．
         /// |z|が1.96以上で両側5%水準, 2.576以上で1%水準, 3.291以上で0.1%水準の統計的有意性を示す．
-        /// 対局数が0, または引き分け率100%(分散0で乖離があっても定義不能)の場合はnull．
+        /// 対局数が0, 引き分け率100%(分散0で乖離があっても定義不能)の場合はnull．
+        /// 決着数(勝ち数+負け数)がExactBinomialTest.MinDecisiveGamesForNormalApprox未満の場合も,
+        /// この正規近似は信頼できない(過大な信頼度を示す)ためnullを返す — その場合は
+        /// ConfidenceLevelがExactBinomialTestによる厳密な値を代わりに返す．
         /// </summary>
         [JsonPropertyOrder(21)]
         public double? SignificanceZ
@@ -152,6 +161,9 @@ namespace NBoardLocalGameServer
             get
             {
                 if (TotalGameCount == 0)
+                    return null;
+
+                if (TotalWinCount + TotalLossCount < ExactBinomialTest.MinDecisiveGamesForNormalApprox)
                     return null;
 
                 var variance = (1.0 - TotalDrawRate) / 4.0;
@@ -164,11 +176,29 @@ namespace NBoardLocalGameServer
         }
 
         /// <summary>
-        /// SignificanceZに対応する, 両側検定での信頼度(0〜1). 例えばz=1.28ならおよそ0.80(80%)．
-        /// SignificanceZがnullの場合はnull．
+        /// 両側検定での信頼度(0〜1). 決着数が十分あればSignificanceZから正規近似で
+        /// (例えばz=1.28ならおよそ0.80(80%)), 決着数が少なければExactBinomialTestによる
+        /// 厳密な二項検定(引き分けを除いた決着結果のみが対象)のp値から求める．
+        /// 対局数が0, または決着数が0(全敗0勝0敗はありえないので実質全引き分け)の場合はnull．
         /// </summary>
         [JsonPropertyOrder(22)]
-        public double? ConfidenceLevel => SignificanceZ is { } z ? NormalDistribution.TwoSidedConfidence(z) : null;
+        public double? ConfidenceLevel
+        {
+            get
+            {
+                if (TotalGameCount == 0)
+                    return null;
+
+                if (SignificanceZ is { } z)
+                    return NormalDistribution.TwoSidedConfidence(z);
+
+                var decisive = TotalWinCount + TotalLossCount;
+                if (decisive == 0)
+                    return null;
+
+                return 1.0 - ExactBinomialTest.TwoSidedPValue(TotalWinCount, decisive);
+            }
+        }
 
         /// <summary>
         /// 現在の得点率・引き分け率をそのまま維持したと仮定した場合に, 両側5%水準で統計的有意と

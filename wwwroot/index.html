@@ -579,7 +579,10 @@ function fmtElo(d, margin){
 }
 function eloText(p){
   const d = p.EloDiff!=null ? p.EloDiff : eloFromWinRate(p.TotalWinRate);
-  const margin = p.EloDiffMargin95!=null ? p.EloDiffMargin95 : eloMarginFromWinRate(p.TotalWinRate, p.TotalDrawRate, p.TotalGameCount);
+  // EloDiffMargin95 can be a legitimate null from a fresh backend (too few decisive games for the
+  // normal-approximation margin to be meaningful) — only recompute via the fallback formula when the
+  // field is entirely absent (stats.json predating EloDiffMargin95), i.e. undefined, not null.
+  const margin = p.EloDiffMargin95 !== undefined ? p.EloDiffMargin95 : eloMarginFromWinRate(p.TotalWinRate, p.TotalDrawRate, p.TotalGameCount);
   return fmtElo(d, margin);
 }
 // Same backward-compat idea as eloFromWinRate: stats.json written before SignificanceZ existed still
@@ -616,29 +619,39 @@ function normalCdf(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }
 // Confidence level (0-1) for a two-sided test at this z. E.g. z=1.96 -> ~0.95.
 function twoSidedConfidence(z){ return z==null ? null : 2*normalCdf(Math.abs(z))-1; }
 // z-score against the "equal strength" null hypothesis (two-sided). Bands match common convention:
-// |z|>=1.96 -> 95%, >=2.576 -> 99%, >=3.291 -> 99.9%.
-function significanceLabel(z, confidence, unitsNeeded, unitWord){
-  if(z==null) return 'Not enough data';
+// |z|>=1.96 -> 95%, >=2.576 -> 99%, >=3.291 -> 99.9%. Below MinDecisiveGamesForNormalApprox decisive
+// results, the backend nulls out z/margin (the normal approximation overstates confidence when
+// decisive results are rare — e.g. 3 wins/0 losses out of 50 games, mostly draws) and reports
+// confidence via an exact binomial test on the decisive results instead, so z can legitimately be
+// null here even though confidence isn't — band on confidence directly rather than on z.
+function significanceLabel(z, confidence, unitsNeeded, unitWord, decisive){
+  if(confidence==null) return 'Not enough data';
   const pct = (confidence*100).toFixed(1);
-  const az = Math.abs(z);
   let level = null;
-  if(az>=3.291) level = '99.9%';
-  else if(az>=2.576) level = '99%';
-  else if(az>=1.96) level = '95%';
-  if(level) return `Significant — ${pct}% confidence (past the ${level} threshold, z=${z.toFixed(2)})`;
-  return `Not yet significant — ${pct}% confidence (z=${z.toFixed(2)})` + (unitsNeeded!=null ? ` — ~${unitsNeeded.toLocaleString()} ${unitWord||'games'} needed for 95%` : '');
+  if(confidence>=0.999) level = '99.9%';
+  else if(confidence>=0.99) level = '99%';
+  else if(confidence>=0.95) level = '95%';
+  const method = z!=null ? `z=${z.toFixed(2)}` : `exact test on ${decisive} decisive result${decisive===1?'':'s'}`;
+  if(level) return `Significant — ${pct}% confidence (past the ${level} threshold, ${method})`;
+  return `Not yet significant — ${pct}% confidence (${method})` + (unitsNeeded!=null ? ` — ~${unitsNeeded.toLocaleString()} ${unitWord||'games'} needed for 95%` : '');
 }
-// z is always from label0's perspective (positive = label0 favored). Renders a shared card (not
-// per-player) since significance describes the comparison as a whole, not each side individually.
-function renderSignificanceCard(label0, unitsNeeded0, label1, unitsNeeded1, z, confidence, unitWord){
+// z is always from label0's perspective (positive = label0 favored); scoreDeviation0 (label0's score
+// minus 0.5) is the fallback sign source when z is null (exact-test regime, see significanceLabel).
+// Renders a shared card (not per-player) since significance describes the comparison as a whole, not
+// each side individually.
+function renderSignificanceCard(label0, unitsNeeded0, label1, unitsNeeded1, z, confidence, unitWord, decisive, scoreDeviation0){
+  // confidence is undefined (not null) only for stats.json predating the ConfidenceLevel field —
+  // fall back to deriving it from z in that case. A real null (current backend, too few decisive
+  // results to say anything at all) must stay null, not be coerced into "not enough data" via ==.
+  const conf = confidence !== undefined ? confidence : twoSidedConfidence(z);
   let row;
-  if(z==null){
+  if(conf==null){
     row = `<dt>Result</dt><dd>Not enough data</dd>`;
   }else{
-    const favoredLabel = z>=0 ? label0 : label1;
-    const unitsNeeded = z>=0 ? unitsNeeded0 : unitsNeeded1;
-    const conf = confidence!=null ? confidence : twoSidedConfidence(z);
-    row = `<dt>${escapeHtml(favoredLabel)} favored</dt><dd>${significanceLabel(Math.abs(z), conf, unitsNeeded, unitWord)}</dd>`;
+    const favors0 = z!=null ? z>=0 : scoreDeviation0>=0;
+    const favoredLabel = favors0 ? label0 : label1;
+    const unitsNeeded = favors0 ? unitsNeeded0 : unitsNeeded1;
+    row = `<dt>${escapeHtml(favoredLabel)} favored</dt><dd>${significanceLabel(z!=null?Math.abs(z):null, conf, unitsNeeded, unitWord, decisive)}</dd>`;
   }
   return `
     <div class="card">
@@ -1506,9 +1519,9 @@ async function openHistoryModal(id){
       ${renderSignificanceCard(
         p0.Label, p0.GamesNeededFor95PctSignificance!=null ? p0.GamesNeededFor95PctSignificance : gamesNeededFromWinRate(p0.TotalWinRate, p0.TotalDrawRate),
         p1.Label, p1.GamesNeededFor95PctSignificance!=null ? p1.GamesNeededFor95PctSignificance : gamesNeededFromWinRate(p1.TotalWinRate, p1.TotalDrawRate),
-        p0.SignificanceZ!=null ? p0.SignificanceZ : zFromWinRate(p0.TotalWinRate, p0.TotalDrawRate, p0.TotalGameCount),
+        p0.SignificanceZ !== undefined ? p0.SignificanceZ : zFromWinRate(p0.TotalWinRate, p0.TotalDrawRate, p0.TotalGameCount),
         p0.ConfidenceLevel,
-        'games')}`;
+        'games', p0.TotalWinCount + p0.TotalLossCount, p0.TotalWinRate - 0.5)}`;
   } else if(statsData.MatchStats){
     const m = statsData.MatchStats;
     body = `
@@ -1537,15 +1550,15 @@ async function openHistoryModal(id){
           <dt>Total matches</dt><dd>${m.TotalMatchCount}</dd>
           <dt>${escapeHtml(m.Label0)} total net margin</dt><dd>${m.TotalNetScoreForPlayer0>0?'+':''}${m.TotalNetScoreForPlayer0}</dd>
           <dt>${escapeHtml(m.Label0)} avg net margin/match</dt><dd>${m.AverageNetScoreForPlayer0>0?'+':''}${m.AverageNetScoreForPlayer0.toFixed(2)}</dd>
-          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m)), m.EloDiffMargin95ForPlayer0!=null ? m.EloDiffMargin95ForPlayer0 : eloMarginFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount))}</dd>
+          <dt>${escapeHtml(m.Label0)} Elo diff</dt><dd>${fmtElo(m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m)), m.EloDiffMargin95ForPlayer0 !== undefined ? m.EloDiffMargin95ForPlayer0 : eloMarginFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount))}</dd>
         </div>
       </div>
       ${renderSignificanceCard(
         m.Label0, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(matchScore0(m), m.MatchDrawRate),
         m.Label1, m.MatchesNeededFor95PctSignificance!=null ? m.MatchesNeededFor95PctSignificance : gamesNeededFromWinRate(matchScore0(m), m.MatchDrawRate),
-        m.SignificanceZForPlayer0!=null ? m.SignificanceZForPlayer0 : zFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount),
+        m.SignificanceZForPlayer0 !== undefined ? m.SignificanceZForPlayer0 : zFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount),
         m.ConfidenceLevelForPlayer0,
-        'matches')}`;
+        'matches', m.MatchWinCount[0] + m.MatchWinCount[1], matchScore0(m) - 0.5)}`;
   } else {
     body = `<div class="hint">Unrecognized stats format.</div>`;
   }
@@ -1648,7 +1661,7 @@ function renderSpectateLiveStats(status){
   } else if(stats.MatchStats){
     const m = stats.MatchStats;
     const eloVal = m.EloDiffForPlayer0!=null ? m.EloDiffForPlayer0 : eloFromWinRate(matchScore0(m));
-    const eloMargin = m.EloDiffMargin95ForPlayer0!=null ? m.EloDiffMargin95ForPlayer0 : eloMarginFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount);
+    const eloMargin = m.EloDiffMargin95ForPlayer0 !== undefined ? m.EloDiffMargin95ForPlayer0 : eloMarginFromWinRate(matchScore0(m), m.MatchDrawRate, m.TotalMatchCount);
     body = `
       <div class="kv" style="grid-template-columns:auto 1fr auto 1fr;">
         <dt><span class="disc b" style="margin-right:6px;"></span>${escapeHtml(m.Label0)}</dt><dd>${m.MatchWinCount[0]} match wins · ${(m.Player0MatchWinRate*100).toFixed(1)}%</dd>
