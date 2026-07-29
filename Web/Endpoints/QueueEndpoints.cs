@@ -71,13 +71,22 @@ namespace NBoardLocalGameServer.Web.Endpoints
                 var engineNames = runner.CurrentEngineNames;
 
                 var sessions = new List<SpectateSession>();
-                // gameID % MaxSessions gives each concurrently-active game a stable slot number for its
-                // whole lifetime (no more than MaxSessions games can ever be in flight at once, so this
-                // is always unique among them) — this keeps a card "pinned" to one slot instead of every
-                // poll re-ranking active games 1..N by ordinal position, which made a game visually jump
-                // to a different "Session" card whenever any other session finished/started around it.
-                foreach (var (gameId, session) in server.ActiveSessions.OrderBy(kv => kv.Key % server.MaxSessions))
+                // GameServer.SessionSlots gives each concurrently-active game a stable slot number for
+                // its whole lifetime — this keeps a card "pinned" to one slot instead of every poll
+                // re-ranking active games 1..N by ordinal position, which made a game visually jump to a
+                // different "Session" card whenever any other session finished/started around it.
+                // (gameID % MaxSessions used to be used for this, but gameIDs are handed out in launch
+                // order while games finish out of order, so that could alias an older still-running
+                // game's slot onto a newer one — see SessionSlots' doc comment.)
+                foreach (var (gameId, session) in server.ActiveSessions.OrderBy(
+                    kv => server.SessionSlots.TryGetValue(kv.Key, out var s) ? s : int.MaxValue))
                 {
+                    // ActiveSessions/SessionSlots are separate dictionaries updated one after the other,
+                    // so there's a brief window right after a game starts where it's in one but not yet
+                    // the other — same kind of race as the null-finalPos check below, skip for this poll.
+                    if (!server.SessionSlots.TryGetValue(gameId, out var slot))
+                        continue;
+
                     var info = session.CurrentGameInfo;
                     var finalPos = info.TryGenerateFinalPosition();
                     // A null result means we raced GameSession's move-application loop mid-update
@@ -98,7 +107,7 @@ namespace NBoardLocalGameServer.Web.Endpoints
 
                     var board = BuildBoardString(finalPos);
                     sessions.Add(new SpectateSession(
-                        gameId % server.MaxSessions + 1, gameId, blackName, whiteName,
+                        slot + 1, gameId, blackName, whiteName,
                         info.Moves.Count, board,
                         board.Count(c => c == '*'), board.Count(c => c == 'O'),
                         finalPos.SideToMove.ToString(), finalPos.IsGameOver));

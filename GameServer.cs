@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 using NBoardLocalGameServer.Engine;
@@ -75,6 +76,8 @@ namespace NBoardLocalGameServer
         readonly int _maxSessions = maxSessions;
         readonly ConcurrentDictionary<int, GameSession> _activeSessions = new();
         readonly ConcurrentDictionary<int, bool> _blackIsPlayerZero = new();
+        readonly ConcurrentDictionary<int, int> _sessionSlots = new();
+        readonly Channel<int> _slotPool = CreateSlotPool(maxSessions);
         int _completedGameCount;
         CancellationTokenSource? _cts;
         volatile Player[]? _players;
@@ -83,11 +86,7 @@ namespace NBoardLocalGameServer
         /// <summary>Total games this run will play (numMatches * (Synchro ? 2 : 1)). 0 until MainloopAsync starts.</summary>
         public int TotalGameCount { get; private set; }
 
-        /// <summary>
-        /// The engine-pool size (--sessions). At most this many games can be in flight at once, which
-        /// callers can use to derive a stable "slot" identity for a game (gameID % MaxSessions is unique
-        /// among concurrently active games, since more than MaxSessions of them can never overlap).
-        /// </summary>
+        /// <summary>The engine-pool size (--sessions). At most this many games can be in flight at once.</summary>
         public int MaxSessions => _maxSessions;
 
         /// <summary>
@@ -122,6 +121,16 @@ namespace NBoardLocalGameServer
         /// across different registrations of the same underlying engine binary.
         /// </summary>
         public IReadOnlyDictionary<int, bool> BlackIsPlayerZero => _blackIsPlayerZero;
+
+        /// <summary>
+        /// For each active gameID, a stable 0-based slot number in [0, MaxSessions) assigned when the
+        /// session starts and released back to the pool when it ends. GameIDs are handed out in strict
+        /// launch order, but games don't finish in that order (think time/move count vary), so a naive
+        /// "gameID % MaxSessions" can collide between an older still-running game and a newer one that
+        /// happened to reuse a *different* game's freed engine slot. This dictionary tracks the actual
+        /// assignment so it's always unique among concurrently active games.
+        /// </summary>
+        public IReadOnlyDictionary<int, int> SessionSlots => _sessionSlots;
 
         /// <summary>
         /// Live per-player win/loss/draw tallies, readable at any time while the match runs — each
@@ -307,6 +316,7 @@ namespace NBoardLocalGameServer
             GameSession? session = null;
             NBoardEngine? blackEngine = null, whiteEngine = null;
             GameInfo? resultedGame = null;
+            var slot = -1;
             var sb = new StringBuilder();
 
             try
@@ -323,6 +333,12 @@ namespace NBoardLocalGameServer
                     whiteEngine = await whitePlayer.EnginePool.RentAsync(ct);
                     blackEngine = await blackPlayer.EnginePool.RentAsync(ct);
                 }
+
+                // Both engines are held for exactly as long as the game runs, and there are at most
+                // _maxSessions of them outstanding at once (bounded by the engine pools' capacity), so
+                // a slot is always available here — see _slotPool/SessionSlots for why gameID itself
+                // can't be used as the slot number.
+                slot = await _slotPool.Reader.ReadAsync(ct);
 
                 sb.AppendLine($"[Start Game {gameID}]");
 
@@ -342,6 +358,7 @@ namespace NBoardLocalGameServer
                 session = new GameSession(_config.SessionMode, blackEngine, whiteEngine, gameInfo);
                 _activeSessions[gameID] = session;
                 _blackIsPlayerZero[gameID] = blackPlayer == players[0];
+                _sessionSlots[gameID] = slot;
 
                 resultedGame = await session.Start(ct);
 
@@ -427,6 +444,8 @@ namespace NBoardLocalGameServer
             {
                 _activeSessions.TryRemove(gameID, out _);
                 _blackIsPlayerZero.TryRemove(gameID, out _);
+                if (_sessionSlots.TryRemove(gameID, out _))
+                    _slotPool.Writer.TryWrite(slot);
                 Interlocked.Increment(ref _completedGameCount);
 
                 if(blackEngine is not null)
@@ -481,6 +500,14 @@ namespace NBoardLocalGameServer
                     sw.WriteLine(game.ToGGFString());
             }
             sw.Flush();
+        }
+
+        static Channel<int> CreateSlotPool(int maxSessions)
+        {
+            var pool = Channel.CreateBounded<int>(maxSessions);
+            for (var i = 0; i < maxSessions; i++)
+                pool.Writer.TryWrite(i);
+            return pool;
         }
 
         static OpeningBook? LoadOpeningBook(string path)
