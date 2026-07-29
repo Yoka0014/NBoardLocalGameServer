@@ -139,7 +139,8 @@ namespace NBoardLocalGameServer.Web.Services
                     PresetName = entry.PresetId,
                     Matches = entry.Matches,
                     Sessions = entry.Sessions,
-                    ErrorMessage = ex.Message
+                    ErrorMessage = ex.Message,
+                    Note = entry.Note
                 });
                 return;
             }
@@ -159,7 +160,8 @@ namespace NBoardLocalGameServer.Web.Services
                 Matches = entry.Matches,
                 Sessions = entry.Sessions,
                 Engine0Config = new EngineLaunchConfig(run.Player0.Path, run.Player0.Arguments, run.Player0.WorkDir, [.. run.Player0.InitialCommands]),
-                Engine1Config = new EngineLaunchConfig(run.Player1.Path, run.Player1.Arguments, run.Player1.WorkDir, [.. run.Player1.InitialCommands])
+                Engine1Config = new EngineLaunchConfig(run.Player1.Path, run.Player1.Arguments, run.Player1.WorkDir, [.. run.Player1.InitialCommands]),
+                Note = entry.Note
             });
 
             // HistoryStore.Save above already created the history/<matchId>/ directory, so GameServer

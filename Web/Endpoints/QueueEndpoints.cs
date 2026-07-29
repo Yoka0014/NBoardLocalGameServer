@@ -18,7 +18,7 @@ namespace NBoardLocalGameServer.Web.Endpoints
         internal record QueueCreateRequest(
             string Engine0Id, string? Engine0ArgumentsOverride, List<string>? Engine0InitialCommandsOverride,
             string Engine1Id, string? Engine1ArgumentsOverride, List<string>? Engine1InitialCommandsOverride,
-            string PresetId, int Matches, int Sessions);
+            string PresetId, int Matches, int Sessions, string? Note);
 
         public static void MapQueueEndpoints(this WebApplication app)
         {
@@ -49,7 +49,8 @@ namespace NBoardLocalGameServer.Web.Endpoints
                     Engine1InitialCommandsOverride = body.Engine1InitialCommandsOverride,
                     PresetId = body.PresetId,
                     Matches = body.Matches,
-                    Sessions = body.Sessions
+                    Sessions = body.Sessions,
+                    Note = string.IsNullOrWhiteSpace(body.Note) ? null : body.Note.Trim()
                 };
                 queueStore.Enqueue(entry);
                 return Results.Created($"/api/queue/{entry.Id}", entry);

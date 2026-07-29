@@ -32,5 +32,8 @@ namespace NBoardLocalGameServer.Web.Models
         // Nullable so history entries written before this field existed still deserialize.
         public EngineLaunchConfig? Engine0Config { get; init; }
         public EngineLaunchConfig? Engine1Config { get; init; }
+
+        /// <summary>Free-text note carried over from the queue entry (e.g. why the match was run).</summary>
+        public string? Note { get; init; }
     }
 }

@@ -382,6 +382,10 @@
               <div class="hint">Defaults to the server's logical core count if omitted.</div>
             </div>
           </div>
+          <div class="field">
+            <label for="notesInput">Notes (optional)</label>
+            <textarea id="notesInput" rows="2" placeholder="What is this match for?"></textarea>
+          </div>
           <button class="btn primary" onclick="addToQueue()">Add to queue</button>
         </div>
       </section>
@@ -467,7 +471,7 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Matchup</th><th>Preset</th><th>Matches</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Matchup</th><th>Preset</th><th>Matches</th><th>Status</th><th>Note</th><th></th></tr></thead>
             <tbody id="historyTableBody"></tbody>
           </table>
         </div>
@@ -799,6 +803,7 @@ function renderDashboard(){
         <div>
           <div class="vs-row"><span class="disc-pair"><span class="disc b"></span>${escapeHtml(e0?e0.Name:q.Engine0Id)}</span><span class="sep">vs</span><span class="disc-pair"><span class="disc w"></span>${escapeHtml(e1?e1.Name:q.Engine1Id)}</span></div>
           <div class="queue-meta">${escapeHtml(preset?preset.Name:q.PresetId)} · ${q.Matches} matches · ${q.Sessions} sessions</div>
+          ${q.Note ? `<div class="queue-meta" style="font-style:italic;">${escapeHtml(q.Note)}</div>` : ''}
         </div>
       </div>
       <button class="btn danger small" onclick="cancelQueue('${q.Id}')">Cancel</button>
@@ -899,6 +904,7 @@ function addToQueue(){
     PresetId: document.getElementById('presetSelect').value,
     Matches: Math.max(1, Number(document.getElementById('matchesInput').value)||1),
     Sessions: Math.max(1, Number(document.getElementById('sessionsInput').value)||1),
+    Note: document.getElementById('notesInput').value.trim() || null,
   };
   if(!settings.AutoStopWhenQueueEmpty){
     confirmAutostopThenQueue(body);
@@ -1453,11 +1459,12 @@ function renderHistoryTable(){
       <td>${escapeHtml(h.PresetName)}</td>
       <td class="mono">${h.Matches}</td>
       <td class="mono">${escapeHtml(h.Status)}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(h.Note||'')}">${escapeHtml(h.Note||'')}</td>
       <td style="text-align:right;white-space:nowrap;">
         <a class="btn small ghost" href="${API}/history/${h.Id}/stats.json" target="_blank" download>JSON</a>
         <a class="btn small ghost" href="${API}/history/${h.Id}/record.ggf" target="_blank" download>GGF</a>
       </td>
-    </tr>`).join('') : `<tr><td colspan="6"><div class="empty">${filter ? 'No matches with status “'+escapeHtml(filter)+'”' : 'No completed matches yet'}</div></td></tr>`;
+    </tr>`).join('') : `<tr><td colspan="7"><div class="empty">${filter ? 'No matches with status “'+escapeHtml(filter)+'”' : 'No completed matches yet'}</div></td></tr>`;
 }
 async function openHistoryModal(id){
   const entry = historyEntries.find(h=>h.Id===id) || await apiGet(`/history/${id}`).catch(()=>null);
@@ -1556,6 +1563,7 @@ async function openHistoryModal(id){
           </div>
           <button class="btn small ghost" onclick="closeModal()">Close</button>
         </div>
+        ${entry.Note ? `<div class="hint" style="margin-bottom:12px;font-style:italic;">${escapeHtml(entry.Note)}</div>` : ''}
         ${body}
         ${configSection}
         <div style="margin-top:16px;display:flex;gap:8px;">

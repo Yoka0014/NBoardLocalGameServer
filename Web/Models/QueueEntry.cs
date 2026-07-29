@@ -23,5 +23,8 @@ namespace NBoardLocalGameServer.Web.Models
         public required string PresetId { get; init; }
         public required int Matches { get; init; }
         public required int Sessions { get; init; }
+
+        /// <summary>Free-text note recorded by whoever queued the match (e.g. why it was run).</summary>
+        public string? Note { get; init; }
     }
 }
