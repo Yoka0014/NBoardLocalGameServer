@@ -1,0 +1,41 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "UploadBuildsToDeployBucket",
+      "Effect": "Allow",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::REPLACE_WITH_DEPLOY_BUCKET/deploys/*"
+    },
+    {
+      "Sid": "DescribeInstances",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "StartTheOneInstance",
+      "Effect": "Allow",
+      "Action": "ec2:StartInstances",
+      "Resource": "arn:aws:ec2:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT_ID:instance/REPLACE_WITH_YOUR_INSTANCE_ID"
+    },
+    {
+      "Sid": "RunDeployScriptOnThatInstanceOnly",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ec2:REPLACE_WITH_REGION:REPLACE_WITH_ACCOUNT_ID:instance/REPLACE_WITH_YOUR_INSTANCE_ID",
+        "arn:aws:ssm:REPLACE_WITH_REGION::document/AWS-RunShellScript"
+      ]
+    },
+    {
+      "Sid": "CheckDeployCommandStatus",
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    }
+  ]
+}

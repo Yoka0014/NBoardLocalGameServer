@@ -135,3 +135,49 @@ plugin), so it's better suited to single-device (PC-only) access than the "speci
    aws ssm start-session --target <instance-id> --document-name AWS-StartPortForwardingSession --parameters portNumber=5000,localPortNumber=5000
    ```
    then open `http://localhost:5000`. <kbd>Ctrl+C</kbd> closes the tunnel.
+
+## 6. CI/CD: automatic deploy on push, via GitHub Actions + SSM (no inbound SSH)
+
+`.github/workflows/deploy.yml` builds and deploys on every push to `main`, without ever opening the
+security group to GitHub's IP ranges and without a self-hosted runner (which can't work here anyway,
+since the instance normally sits **stopped** per section 1 — a self-hosted runner needs its host
+always-on to poll GitHub, which defeats the auto-stop savings). Instead, a GitHub-hosted runner assumes
+a short-lived AWS role over OIDC (no long-lived AWS keys in GitHub Secrets), wakes the instance if it's
+stopped, and hands the actual deploy off to the instance itself via SSM `send-command` — the instance
+polls its own `/api/queue` endpoint and only swaps in the new build and restarts `nboard-server` once no
+match is currently running (queued-but-not-started entries are safe either way; `QueueStore` persists
+them to disk and `QueueRunner` resumes them on restart). That wait happens in `deploy/apply-deploy.sh`
+running on the instance via the SSM agent, not in the GitHub Actions job — so the job itself only takes
+a couple of minutes regardless of how long the current match queue takes to drain, and never risks
+hitting GitHub's 6-hour job limit.
+
+1. One-time setup for GitHub's OIDC identity provider in your AWS account (skip if some other workflow
+   in the account already added it): IAM → Identity providers → Add provider → OpenID Connect, provider
+   URL `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`.
+2. Create an S3 bucket to stage build artifacts (versioning/lifecycle rules optional - `apply-deploy.sh`
+   only ever reads the one object it was just told about).
+3. Create an IAM role for GitHub Actions with the trust policy from
+   [`github-actions-deploy-trust-policy.json`](./github-actions-deploy-trust-policy.json) (fill in your
+   account ID; the `sub` condition already pins it to pushes/dispatches on this repo's `main` branch
+   specifically) and attach the permissions from
+   [`github-actions-deploy-permissions-policy.json`](./github-actions-deploy-permissions-policy.json)
+   (fill in region/account/instance ID/bucket name).
+4. Attach the AWS managed policy `AmazonSSMManagedInstanceCore` to the EC2 instance's existing IAM role
+   (needed for the SSM agent to receive commands at all - most current Amazon Linux/Ubuntu AMIs already
+   run the agent, they just need the permissions), plus the inline policy from
+   [`ec2-instance-deploy-fetch-policy.json`](./ec2-instance-deploy-fetch-policy.json) (fill in the bucket
+   name) so the instance can pull its own builds from S3.
+5. Make sure the AWS CLI v2 and `unzip` are installed on the instance (`aws --version`, `unzip -v`) -
+   `apply-deploy.sh` shells out to both. Amazon Linux 2023 ships the CLI by default but not `unzip`
+   (`sudo dnf install -y unzip`).
+6. Copy `deploy/apply-deploy.sh` onto the instance at `/home/ec2-user/deploy/apply-deploy.sh` and
+   `chmod +x` it. It isn't run from a git checkout on the instance, so re-copy it manually whenever it
+   changes.
+7. Add these repo secrets (Settings → Secrets and variables → Actions):
+   `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `DEPLOY_BUCKET`, `EC2_INSTANCE_ID`.
+
+From then on, pushing to `main` builds, uploads, wakes the instance if needed, and deploys - waiting for
+a safe (queue-idle) moment automatically. Check on a deploy that's still waiting with:
+```
+aws ssm get-command-invocation --command-id <id-from-the-workflow-log> --instance-id <instance-id>
+```
