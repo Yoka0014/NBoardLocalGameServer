@@ -102,7 +102,20 @@ One-time setup:
    volume, which persists as long as you stop rather than terminate — same rule as `data/`).
 3. Start the app with `--bind-address <that Tailscale IP>` instead of the default `127.0.0.1`, so it's
    reachable over the Tailscale network specifically (not the public internet — the instance's public
-   IP still has nothing listening on the app's port).
+   IP still has nothing listening on the app's port). In production this runs as a systemd service —
+   copy [`nboard-server.service`](./nboard-server.service) to `/etc/systemd/system/nboard-server.service`
+   (filling in the real Tailscale IP in both `ExecStartPre` and `ExecStart`) and
+   [`wait-for-tailscale-ip.sh`](./wait-for-tailscale-ip.sh) to `/home/ec2-user/deploy/` (`chmod +x` it),
+   then `systemctl daemon-reload && systemctl enable --now nboard-server`.
+
+   The unit's `ExecStartPre` matters: `After=tailscaled.service` alone isn't enough, because tailscaled's
+   systemd `Type=notify` readiness signal fires once its own daemon/IPC socket is up, which can be
+   *before* the WireGuard interface actually has the Tailscale IP configured. Without the wait step,
+   nboard-server can start first and crash immediately (`SocketException(99): Cannot assign requested
+   address` from Kestrel trying to bind an IP that doesn't exist on any interface yet) — `Restart=on-failure`
+   recovers it a few seconds later, but that race isn't guaranteed to resolve that fast every time
+   (observed in production after a stop/start cycle). `wait-for-tailscale-ip.sh` polls for the IP to
+   actually appear on `tailscale0` before letting `ExecStart` run.
 4. Install the Tailscale app on your PC and your phone, and sign in with the same account. In the
    [Tailscale admin console](https://login.tailscale.com/admin/machines), each device shows up as a
    machine you can individually revoke later if needed.

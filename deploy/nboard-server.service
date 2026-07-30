@@ -1,0 +1,17 @@
+[Unit]
+Description=NBoard Local Game Server (match server)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+Environment=DOTNET_ROOT=/home/ec2-user/.dotnet
+WorkingDirectory=/home/ec2-user
+ExecStartPre=/home/ec2-user/deploy/wait-for-tailscale-ip.sh 100.107.146.54 30
+ExecStart=/home/ec2-user/.dotnet/dotnet /home/ec2-user/nboard-publish/NBoardLocalGameServer.dll serve --port 5000 --data-dir /home/ec2-user/nboard-data --bind-address 100.107.146.54
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
