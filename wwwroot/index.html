@@ -1016,7 +1016,10 @@ function renderEngineTable(){
       <td class="mono" style="color:var(--text-dim)">${fmtDate(e.CreatedAt)}</td>
       <td><span class="badge ${b.cls}">${escapeHtml(b.label)}</span></td>
       <td class="mono" style="font-size:12px;color:var(--text-dim)">${escapeHtml(e.DefaultPath)} ${escapeHtml(e.DefaultArguments)}</td>
-      <td style="text-align:right;"><button class="btn small ghost" onclick="openEngineDetail('${e.Id}')">Details</button></td>
+      <td style="text-align:right; white-space:nowrap;">
+        <a class="btn small ghost" href="${API}/engines/${e.Id}/zip" target="_blank" download>ZIP</a>
+        <button class="btn small ghost" onclick="openEngineDetail('${e.Id}')">Details</button>
+      </td>
     </tr>`;
   }).join('') : `<tr><td colspan="5"><div class="empty">No engines registered yet</div></td></tr>`;
 }
@@ -1142,7 +1145,8 @@ function renderEngineDetail(e, buildLog){
 
     <div class="card">
       <h3>Directory files</h3>
-      <div class="hint" style="margin-bottom:10px;">This is the extracted directory layout (the extraction root is the working directory used during matches). Click a folder to expand or collapse it. Files can be downloaded or replaced individually.</div>
+      <div class="hint" style="margin-bottom:10px;">This is the extracted directory layout (the extraction root is the working directory used during matches). Click a folder to expand or collapse it. Files can be downloaded or replaced individually, or you can take the whole directory — build products included — as one zip.</div>
+      <a class="btn small ghost" style="display:inline-block; margin-bottom:10px;" href="${API}/engines/${e.Id}/zip" target="_blank" download>Download all (zip)</a>
       <div class="tree" id="engineFileTree"></div>
     </div>`;
 }

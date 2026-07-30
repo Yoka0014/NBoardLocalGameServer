@@ -147,6 +147,17 @@ namespace NBoardLocalGameServer.Web.Endpoints
                 return Results.File(logPath, "text/plain");
             });
 
+            group.MapGet("/{id}/zip", async (string id, EngineStore store) =>
+            {
+                if (store.Load(id) is not { } engine)
+                    return Results.NotFound();
+
+                // Same shape as the zip PUT below accepts, so a downloaded engine can be re-registered
+                // (or uploaded to another machine) without repacking it.
+                var zip = await store.OpenZipAsync(id);
+                return Results.Stream(zip, "application/zip", ZipDownloadName(engine));
+            });
+
             group.MapPut("/{id}/zip", async (string id, HttpRequest request, EngineStore store) =>
             {
                 var existing = store.Load(id);
@@ -172,6 +183,14 @@ namespace NBoardLocalGameServer.Web.Endpoints
         }
 
         static string NonEmptyOr(string value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+        /// <summary>Turns an engine name into a download filename, e.g. "Edax 4.6 (d18)" -> "Edax 4.6 (d18).zip".</summary>
+        static string ZipDownloadName(EngineRecord engine)
+        {
+            var invalid = System.IO.Path.GetInvalidFileNameChars();
+            var name = new string([.. engine.Name.Select(c => invalid.Contains(c) ? '_' : c)]).Trim();
+            return $"{(name.Length == 0 ? engine.Id : name)}.zip";
+        }
 
         static List<string> SplitLines(string value) =>
             [.. value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
