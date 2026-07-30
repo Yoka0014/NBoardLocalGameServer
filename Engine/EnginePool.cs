@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -11,6 +12,9 @@ namespace NBoardLocalGameServer.Engine
 
         readonly NBoardEngine[] _engines;
         readonly Channel<NBoardEngine> _pool;
+
+        /// <summary>Every pooled engine, regardless of whether it's currently rented out to a session.</summary>
+        public IReadOnlyList<NBoardEngine> Engines => _engines;
 
         public EnginePool(NBoardEngine[] engines)
         {

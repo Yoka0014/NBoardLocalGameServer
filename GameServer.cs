@@ -65,6 +65,10 @@ namespace NBoardLocalGameServer
         public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
     }
 
+    /// <summary>One pooled engine process for live debugging (e.g. viewing its captured stderr) —
+    /// independent of whether it's currently rented out to an active session.</summary>
+    internal record EngineProcessSnapshot(int PlayerIndex, EngineProcessInfo Process, IReadOnlyList<string> RecentErrorLines);
+
     internal class GameServer(GameServerConfig config, PlayerConfig playerConfig0, PlayerConfig playerConfig1, string gameRecordPath, string playerStatsPath, int maxSessions, GameClockConfig? player0Clock = null, GameClockConfig? player1Clock = null, string? player0DisplayName = null, string? player1DisplayName = null)
     {
         readonly GameServerConfig _config = config;
@@ -138,6 +142,15 @@ namespace NBoardLocalGameServer
         /// when stats are next flushed to disk. Null until MainloopAsync starts.
         /// </summary>
         public IReadOnlyList<PlayerStats>? CurrentPlayerStats => _players?.Select(p => p.Stats).ToArray();
+
+        /// <summary>
+        /// Snapshot of every pooled engine process for both players (size Sessions each), regardless of
+        /// which ones are currently rented out to an active session — for live debugging (e.g. a web UI
+        /// viewing each running engine's stderr). Null until CreatePlayersAsync has assigned _players.
+        /// </summary>
+        public IReadOnlyList<EngineProcessSnapshot>? EngineProcesses =>
+            _players?.SelectMany((p, i) => p.EnginePool.Engines.Select(e =>
+                new EngineProcessSnapshot(i, e.ProcessInfo, e.RecentErrorLines))).ToArray();
 
         /// <summary>
         /// Live Synchro match-level tallies (win/loss by combined margin), updated as soon as each

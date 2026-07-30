@@ -27,7 +27,15 @@ namespace NBoardLocalGameServer.Engine
 
         public event EventHandler<string>? OnNonResponceTextRecieved;
 
+        /// <summary>Most recent stderr lines from this engine process, for live debugging (e.g. a web UI
+        /// viewer) — bounded so a chatty/misbehaving engine can't grow this without limit.</summary>
+        public IReadOnlyList<string> RecentErrorLines { get { lock (_errorLinesLock) return [.. _errorLines]; } }
+
+        const int MaxErrorLines = 200;
+
         readonly Process _process;
+        readonly object _errorLinesLock = new();
+        readonly Queue<string> _errorLines = new();
 
         // コマンドに対するレスポンスの待機リスト．
         readonly LinkedList<(Regex Pattern, EngineResponse Response)> _waitingResponseList = new();
@@ -142,6 +150,16 @@ namespace NBoardLocalGameServer.Engine
 
         void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
         {
+            if (e.Data is not null)
+            {
+                lock (_errorLinesLock)
+                {
+                    _errorLines.Enqueue(e.Data);
+                    while (_errorLines.Count > MaxErrorLines)
+                        _errorLines.Dequeue();
+                }
+            }
+
             var msg = $"Engine Error Info (Name: {(_process.HasExited ? null : Name)}, PID: {(_process.HasExited ? null : Id)}): {e.Data}";
             Console.Error.WriteLine(msg);
             DebugOut.WriteLine(msg);

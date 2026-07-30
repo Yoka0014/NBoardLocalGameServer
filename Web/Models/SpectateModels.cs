@@ -21,4 +21,7 @@ namespace NBoardLocalGameServer.Web.Models
     /// existing stats-rendering logic, just updated continuously instead of only after the match ends.
     /// </summary>
     internal record SpectateStatus(bool Running, string? MatchId, int TotalGames, int CompletedGames, IReadOnlyList<SpectateSession> Sessions, object? LiveStats = null);
+
+    /// <summary>One currently-running engine process's recent stderr, for the Spectate page's engine-logs panel.</summary>
+    internal record EngineProcessLog(int PlayerIndex, string EngineName, int Pid, string Path, IReadOnlyList<string> RecentErrorLines);
 }

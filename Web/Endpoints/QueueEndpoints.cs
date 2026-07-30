@@ -121,6 +121,20 @@ namespace NBoardLocalGameServer.Web.Endpoints
 
                 return Results.Ok(new SpectateStatus(true, runner.CurrentMatchId, server.TotalGameCount, server.CompletedGameCount, sessions, liveStats));
             });
+
+            app.MapGet("/api/engine-logs", (QueueRunner runner) =>
+            {
+                var server = runner.CurrentGameServer;
+                if (server?.EngineProcesses is not { } procs)
+                    return Results.Ok(Array.Empty<EngineProcessLog>());
+
+                var names = runner.CurrentEngineNames;
+                var logs = procs.Select(p => new EngineProcessLog(
+                    p.PlayerIndex,
+                    p.PlayerIndex == 0 ? (names?.Engine0Name ?? "Engine 0") : (names?.Engine1Name ?? "Engine 1"),
+                    p.Process.Pid, p.Process.Path, p.RecentErrorLines)).ToList();
+                return Results.Ok(logs);
+            });
         }
 
         static string BuildBoardString(Position pos)

@@ -18,6 +18,7 @@ namespace NBoardLocalGameServer.Engine
 
         public string? Name { get; private set; }
         public EngineProcessInfo ProcessInfo => _process.Info;
+        public IReadOnlyList<string> RecentErrorLines => _process.RecentErrorLines;
 
         EngineProcess _process;
         int _pingCount = 0;

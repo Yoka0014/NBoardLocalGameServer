@@ -342,6 +342,9 @@
         </div>
         <div id="spectateLiveStats"></div>
         <div class="spectate-grid" id="spectateGrid"></div>
+        <h3 style="margin-top:24px;">Engine error output</h3>
+        <p class="hint" style="margin-bottom:10px;">Recent stderr lines from each running engine process (view only).</p>
+        <div id="engineLogsGrid"></div>
       </section>
 
       <!-- NEW MATCH -->
@@ -550,6 +553,7 @@ let historyEntries = [];
 let settings = {AutoStopWhenQueueEmpty:false, AutoStopIdleMinutes:15, HistorySyncCommand:''};
 let latestQueueStatus = {Running:null, Pending:[]};
 let latestSpectateStatus = {Running:false, Sessions:[]};
+let latestEngineLogs = [];
 
 let currentPage = 'dashboard';
 let pendingQueueItem = null;
@@ -752,10 +756,12 @@ async function pollTick(){
   const running = latestQueueStatus && latestQueueStatus.Running;
   if(running || currentPage==='spectate'){
     try{ latestSpectateStatus = await apiGet('/spectate'); }catch(e){ /* transient */ }
+    try{ latestEngineLogs = await apiGet('/engine-logs'); }catch(e){ /* transient */ }
   } else {
     latestSpectateStatus = {Running:false, Sessions:[]};
+    latestEngineLogs = [];
   }
-  if(currentPage==='spectate') renderSpectateGrid();
+  if(currentPage==='spectate'){ renderSpectateGrid(); renderEngineLogs(); }
 }
 function tickClock(){
   const el = document.getElementById('elapsedClock');
@@ -1478,6 +1484,7 @@ function renderHistoryTable(){
       <td class="mono">${escapeHtml(h.Status)}</td>
       <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(h.Note||'')}">${escapeHtml(h.Note||'')}</td>
       <td style="text-align:right;white-space:nowrap;">
+        <button class="btn small ghost" onclick="rerunFromHistory('${h.Id}')">Rerun</button>
         <a class="btn small ghost" href="${API}/history/${h.Id}/stats.json" target="_blank" download>JSON</a>
         <a class="btn small ghost" href="${API}/history/${h.Id}/record.ggf" target="_blank" download>GGF</a>
       </td>
@@ -1583,7 +1590,8 @@ async function openHistoryModal(id){
         ${entry.Note ? `<div class="hint" style="margin-bottom:12px;font-style:italic;">${escapeHtml(entry.Note)}</div>` : ''}
         ${body}
         ${configSection}
-        <div style="margin-top:16px;display:flex;gap:8px;">
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn primary" onclick="rerunFromHistory('${id}')">Rerun with same settings</button>
           <a class="btn" href="${API}/history/${id}/stats.json" target="_blank" download>Download stats JSON</a>
           <a class="btn" href="${API}/history/${id}/record.ggf" target="_blank" download>Download game record (GGF)</a>
         </div>
@@ -1614,12 +1622,54 @@ function renderLaunchConfigSection(entry){
     </div>`;
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+async function rerunFromHistory(id){
+  const entry = historyEntries.find(h=>h.Id===id) || await apiGet(`/history/${id}`).catch(()=>null);
+  if(!entry){ toast('History entry not found', true); return; }
+
+  await go('newmatch');
+  closeModal();
+
+  const warnings = [];
+
+  if(engineById(entry.Engine0Id)){
+    document.getElementById('engineSelect0').value = entry.Engine0Id;
+    onEngineSelect(0);
+    if(entry.Engine0Config){
+      document.getElementById('argsInput0').value = entry.Engine0Config.Arguments || '';
+      document.getElementById('initInput0').value = (entry.Engine0Config.InitialCommands||[]).join('\n');
+    }
+  } else warnings.push(`"${entry.Engine0Name}" is no longer registered`);
+
+  if(engineById(entry.Engine1Id)){
+    document.getElementById('engineSelect1').value = entry.Engine1Id;
+    onEngineSelect(1);
+    if(entry.Engine1Config){
+      document.getElementById('argsInput1').value = entry.Engine1Config.Arguments || '';
+      document.getElementById('initInput1').value = (entry.Engine1Config.InitialCommands||[]).join('\n');
+    }
+  } else warnings.push(`"${entry.Engine1Name}" is no longer registered`);
+
+  if(presetById(entry.PresetId)){
+    document.getElementById('presetSelect').value = entry.PresetId;
+    renderPresetPreview();
+  } else warnings.push(`Preset "${entry.PresetName}" no longer exists`);
+
+  document.getElementById('matchesInput').value = entry.Matches;
+  document.getElementById('sessionsInput').value = entry.Sessions;
+  document.getElementById('notesInput').value = entry.Note || '';
+
+  toast(warnings.length
+    ? `Prefilled, but ${warnings.join('; ')} — please review before queuing.`
+    : 'Prefilled from past match — review and add to queue.');
+}
 
 /* ================= Spectate ================= */
 async function openSpectate(){
   go('spectate');
   try{ latestSpectateStatus = await apiGet('/spectate'); }catch(e){ /* ignore */ }
+  try{ latestEngineLogs = await apiGet('/engine-logs'); }catch(e){ /* ignore */ }
   renderSpectateGrid();
+  renderEngineLogs();
 }
 function renderSessionCard(s){
   let boardHtml = '';
@@ -1696,6 +1746,19 @@ function renderSpectateGrid(){
   grid.innerHTML = status.Sessions.length
     ? status.Sessions.map(renderSessionCard).join('')
     : `<div class="empty" style="grid-column:1/-1;">Waiting for the first move…</div>`;
+}
+function renderEngineLogs(){
+  const wrap = document.getElementById('engineLogsGrid');
+  if(!wrap) return;
+  if(!latestEngineLogs.length){
+    wrap.innerHTML = `<div class="empty">No engine processes are currently running.</div>`;
+    return;
+  }
+  wrap.innerHTML = latestEngineLogs.map(log => `
+    <div class="card" style="margin-bottom:12px;">
+      <h3>Engine${log.PlayerIndex} · ${escapeHtml(log.EngineName)} <span style="font-weight:400;color:var(--text-dim);">PID ${log.Pid}</span></h3>
+      <pre class="mono" style="max-height:180px;overflow:auto;white-space:pre-wrap;margin:0;">${log.RecentErrorLines.length ? log.RecentErrorLines.map(escapeHtml).join('\n') : '<span style="color:var(--text-dim)">No error output</span>'}</pre>
+    </div>`).join('');
 }
 
 /* ================= Theme toggle ================= */
