@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="NBoardLocalGameServer.csproj" />
+  <Project Path="DummyEngine\DummyEngine.csproj" />
+  <Project Path="NBoardLocalGameServer.Tests\NBoardLocalGameServer.Tests.csproj" />
 </Solution>

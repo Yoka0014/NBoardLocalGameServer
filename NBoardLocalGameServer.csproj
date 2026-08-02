@@ -21,4 +21,21 @@
     <Content Include="Web\StaticExport\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Lets DummyEngine (a minimal NBoard-protocol test double) and the test project reuse the
+         internal Reversi/GameServer/PlayerConfig types directly instead of duplicating board logic
+         or shelling out to the CLI. -->
+    <InternalsVisibleTo Include="DummyEngine" />
+    <InternalsVisibleTo Include="NBoardLocalGameServer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- These are separate sibling projects nested under this directory; without this they'd also
+         get swept into this project's own default recursive compile glob. -->
+    <Compile Remove="DummyEngine\**" />
+    <Compile Remove="NBoardLocalGameServer.Tests\**" />
+    <Content Remove="DummyEngine\**" />
+    <Content Remove="NBoardLocalGameServer.Tests\**" />
+  </ItemGroup>
+
 </Project>
