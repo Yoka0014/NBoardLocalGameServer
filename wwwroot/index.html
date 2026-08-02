@@ -1294,8 +1294,15 @@ function renderBookTable(){
       <td class="mono" style="color:var(--text-dim)">${fmtDate(b.UploadedAt)}</td>
       <td class="mono">${b.NumPositions.toLocaleString()}</td>
       <td class="mono" style="color:var(--text-dim)">book.txt</td>
-      <td style="text-align:right;"><a class="btn small ghost" href="${API}/books/${b.Id}/content" target="_blank" download>Download</a></td>
+      <td style="text-align:right;white-space:nowrap;">
+        <a class="btn small ghost" href="${API}/books/${b.Id}/content" target="_blank" download>Download</a>
+        <button class="btn small danger ghost" onclick="deleteBook('${b.Id}')">Delete</button>
+      </td>
     </tr>`).join('') : `<tr><td colspan="5"><div class="empty">No books registered yet</div></td></tr>`;
+}
+async function deleteBook(id){
+  try{ await apiDelete('/books/'+id); toast('Book deleted'); await refreshBooks(); renderBookTable(); }
+  catch(e){ toast('Failed to delete book: '+e.message, true); }
 }
 function toggleBookForm(){
   const card = document.getElementById('bookFormCard');
