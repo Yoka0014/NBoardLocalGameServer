@@ -44,25 +44,23 @@ namespace NBoardLocalGameServer.Web.Storage
         }
 
         /// <summary>Extracts an uploaded zip stream into the engine's extracted/ directory, replacing any prior contents.</summary>
-        public async Task ExtractZipAsync(string id, Stream zipStream)
+        /// <remarks>
+        /// The caller's stream is the uploaded form file, which ASP.NET Core has already spooled to a
+        /// seekable (disk-backed, for anything past a small in-memory threshold) buffer while parsing
+        /// the multipart body. Reading the zip directly from it via <see cref="ZipArchive"/> -- rather
+        /// than copying it into a second temp file first, as before -- roughly halves peak temp-disk
+        /// usage for large engine uploads.
+        /// </remarks>
+        public Task ExtractZipAsync(string id, Stream zipStream)
         {
             var extractedRoot = GetExtractedRoot(id);
             if (Directory.Exists(extractedRoot))
                 Directory.Delete(extractedRoot, recursive: true);
             Directory.CreateDirectory(extractedRoot);
 
-            var tempZipPath = Path.Combine(Path.GetTempPath(), $"nboard-engine-upload-{Guid.NewGuid():N}.zip");
-            try
-            {
-                await using (var fileStream = File.Create(tempZipPath))
-                    await zipStream.CopyToAsync(fileStream);
-
-                ZipFile.ExtractToDirectory(tempZipPath, extractedRoot);
-            }
-            finally
-            {
-                File.Delete(tempZipPath);
-            }
+            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
+            archive.ExtractToDirectory(extractedRoot);
+            return Task.CompletedTask;
         }
 
         /// <summary>

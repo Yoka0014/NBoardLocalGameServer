@@ -24,8 +24,11 @@ namespace NBoardLocalGameServer.Web.Endpoints
                 if (!request.HasFormContentType)
                     return Results.BadRequest("Expected multipart/form-data.");
 
-                var form = await request.ReadFormAsync();
-                var name = form["name"].ToString();
+                var (form, formError) = await request.TryReadFormAsync();
+                if (formError is not null)
+                    return formError;
+
+                var name = form!["name"].ToString();
                 if (string.IsNullOrWhiteSpace(name))
                     return Results.BadRequest("\"name\" is required.");
 

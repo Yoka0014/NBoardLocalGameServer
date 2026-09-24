@@ -521,24 +521,36 @@ async function apiForm(path, method, formData){
   if(!res.ok) throw new Error(await safeText(res));
   return res.status===204 ? null : res.json();
 }
-// fetch() has no upload-progress event, so large file uploads (engine zips can be tens of MB) use
-// XMLHttpRequest instead, which reports progress via xhr.upload.onprogress.
+// fetch() has no upload-progress event, so large file uploads (engine zips can be tens to hundreds of
+// MB) use XMLHttpRequest instead, which reports progress via xhr.upload.onprogress.
 function uploadWithProgress(path, method, body, onProgress){
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open(method, API+path);
     xhr.upload.onprogress = (e) => {
-      if(e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      if(e.lengthComputable && onProgress) onProgress(e.loaded / e.total, e.loaded, e.total);
     };
     xhr.onload = () => {
       if(xhr.status >= 200 && xhr.status < 300)
         resolve(xhr.status === 204 || !xhr.responseText ? null : JSON.parse(xhr.responseText));
       else
-        reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+        reject(new Error(xhrErrorMessage(xhr)));
     };
     xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.onabort = () => reject(new Error('Upload cancelled'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out'));
     xhr.send(body);
   });
+}
+// Mirrors safeText()'s handling of a JSON string/ProblemDetails/plain-text error body.
+function xhrErrorMessage(xhr){
+  const t = xhr.responseText;
+  if(!t) return `HTTP ${xhr.status} ${xhr.statusText}`;
+  try{
+    const parsed = JSON.parse(t);
+    if(typeof parsed === 'string') return parsed;
+    return parsed.detail || parsed.title || JSON.stringify(parsed);
+  }catch{ return t; }
 }
 async function apiDelete(path){
   const res = await fetch(API+path, {method:'DELETE'});
@@ -1058,9 +1070,15 @@ function showEngineForm(){
       </div>
       <div class="hint">These are the defaults saved at registration. Only Arguments and InitialCommands can be overridden per match when creating a new match.</div>
     </fieldset>
+    <div id="newEngProgressWrap" style="display:none;">
+      <div class="progress-track"><div id="newEngProgressFill" class="progress-fill" style="width:0%; transition:width .15s linear;"></div></div>
+      <div id="newEngProgressText" class="hint"></div>
+    </div>
+    <div id="newEngError" class="hint" style="display:none; color:var(--danger);"></div>
     <button class="btn primary" id="submitEngineBtn" onclick="submitNewEngine()">Register</button>
-    <button class="btn ghost" onclick="document.getElementById('engineFormCard').style.display='none'">Cancel</button>`;
+    <button class="btn ghost" id="cancelEngineBtn" onclick="document.getElementById('engineFormCard').style.display='none'">Cancel</button>`;
 }
+function fmtMB(bytes){ return (bytes/1_000_000).toFixed(1); }
 async function submitNewEngine(){
   const name = document.getElementById('newEngName').value.trim();
   if(!name){ toast('Enter an engine name', true); return; }
@@ -1078,15 +1096,38 @@ async function submitNewEngine(){
   fd.append('zip', zipInput.files[0]);
 
   const btn = document.getElementById('submitEngineBtn');
-  btn.disabled = true; btn.textContent = 'Uploading…';
+  const cancelBtn = document.getElementById('cancelEngineBtn');
+  const progressWrap = document.getElementById('newEngProgressWrap');
+  const progressFill = document.getElementById('newEngProgressFill');
+  const progressText = document.getElementById('newEngProgressText');
+  const errorBox = document.getElementById('newEngError');
+  errorBox.style.display = 'none';
+  btn.disabled = true; cancelBtn.disabled = true; btn.textContent = 'Uploading…';
+  progressWrap.style.display = 'block';
+  progressFill.style.width = '0%';
+  progressText.textContent = `Uploading… 0% (0.0 / ${fmtMB(zipInput.files[0].size)} MB)`;
   try{
-    await apiForm('/engines', 'POST', fd);
+    await uploadWithProgress('/engines', 'POST', fd, (frac, loaded, total) => {
+      if(frac >= 1){
+        progressText.textContent = 'Extracting…';
+      }else{
+        progressFill.style.width = `${Math.round(frac*100)}%`;
+        progressText.textContent = `Uploading… ${Math.round(frac*100)}% (${fmtMB(loaded)} / ${fmtMB(total)} MB)`;
+      }
+    });
+    progressFill.style.width = '100%';
     document.getElementById('engineFormCard').style.display='none';
     toast('Engine registered (not built yet)');
     await refreshEngines();
     renderEngineTable();
-  }catch(e){ toast('Failed to register engine: '+e.message, true); }
-  finally{ btn.disabled = false; btn.textContent = 'Register'; }
+  }catch(e){
+    toast('Failed to register engine: '+e.message, true);
+    errorBox.textContent = e.message;
+    errorBox.style.display = 'block';
+  }finally{
+    btn.disabled = false; cancelBtn.disabled = false; btn.textContent = 'Register';
+    progressWrap.style.display = 'none';
+  }
 }
 
 async function openEngineDetail(id){
@@ -1182,8 +1223,8 @@ async function replaceEngineZip(){
   btn.disabled = true;
   progress.textContent = 'Uploading… 0%';
   try{
-    await uploadWithProgress(`/engines/${activeEngineId}/zip`, 'PUT', fd, frac => {
-      progress.textContent = frac >= 1 ? 'Extracting…' : `Uploading… ${Math.round(frac*100)}%`;
+    await uploadWithProgress(`/engines/${activeEngineId}/zip`, 'PUT', fd, (frac, loaded, total) => {
+      progress.textContent = frac >= 1 ? 'Extracting…' : `Uploading… ${Math.round(frac*100)}% (${fmtMB(loaded)} / ${fmtMB(total)} MB)`;
     });
     toast('Source replaced — build status reset');
     await refreshEngineDetail();

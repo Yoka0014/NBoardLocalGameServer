@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -34,8 +35,11 @@ namespace NBoardLocalGameServer.Web.Endpoints
                 if (!request.HasFormContentType)
                     return Results.BadRequest("Expected multipart/form-data.");
 
-                var form = await request.ReadFormAsync();
-                var name = form["name"].ToString();
+                var (form, formError) = await request.TryReadFormAsync();
+                if (formError is not null)
+                    return formError;
+
+                var name = form!["name"].ToString();
                 if (string.IsNullOrWhiteSpace(name))
                     return Results.BadRequest("\"name\" is required.");
 
@@ -56,8 +60,16 @@ namespace NBoardLocalGameServer.Web.Endpoints
                     DefaultInitialCommands = SplitLines(form["defaultInitialCommands"].ToString()),
                 };
 
-                await using (var stream = zipFile.OpenReadStream())
+                try
+                {
+                    await using var stream = zipFile.OpenReadStream();
                     await store.ExtractZipAsync(id, stream);
+                }
+                catch (InvalidDataException ex)
+                {
+                    store.Delete(id);
+                    return Results.BadRequest($"Invalid zip file: {ex.Message}");
+                }
 
                 store.Save(record);
                 return Results.Created($"/api/engines/{id}", record);
@@ -167,13 +179,23 @@ namespace NBoardLocalGameServer.Web.Endpoints
                 if (!request.HasFormContentType)
                     return Results.BadRequest("Expected multipart/form-data.");
 
-                var form = await request.ReadFormAsync();
-                var zipFile = form.Files.GetFile("zip");
+                var (form, formError) = await request.TryReadFormAsync();
+                if (formError is not null)
+                    return formError;
+
+                var zipFile = form!.Files.GetFile("zip");
                 if (zipFile is null)
                     return Results.BadRequest("A \"zip\" file is required.");
 
-                await using (var stream = zipFile.OpenReadStream())
+                try
+                {
+                    await using var stream = zipFile.OpenReadStream();
                     await store.ExtractZipAsync(id, stream);
+                }
+                catch (InvalidDataException ex)
+                {
+                    return Results.BadRequest($"Invalid zip file: {ex.Message}");
+                }
 
                 existing.LastBuildStatus = "NotBuilt";
                 existing.LastBuildAt = null;

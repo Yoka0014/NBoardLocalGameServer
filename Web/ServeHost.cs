@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,13 @@ namespace NBoardLocalGameServer.Web
 {
     internal static class ServeHost
     {
+        // Engine data files (eval tables, coefficient files, etc.) can be tens to hundreds of MB.
+        // Both Kestrel's request-body limit AND ASP.NET Core's separate multipart-form-parsing limit
+        // (FormOptions.MultipartBodyLengthLimit, which defaults to 128 MiB and is otherwise unrelated
+        // to Kestrel's limit) need to allow this, or uploads above 128 MiB fail with an unhandled
+        // InvalidDataException from ReadFormAsync() even though Kestrel itself accepted the body.
+        internal const long MaxUploadBytes = 500_000_000;
+
         public static async Task RunAsync(int port, string dataDir, string bindAddress = "127.0.0.1")
         {
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -23,8 +31,12 @@ namespace NBoardLocalGameServer.Web
 
             builder.WebHost.ConfigureKestrel(options =>
             {
-                // Engine data files (eval tables, coefficient files, etc.) can be tens of MB.
-                options.Limits.MaxRequestBodySize = 500_000_000;
+                options.Limits.MaxRequestBodySize = MaxUploadBytes;
+            });
+
+            builder.Services.Configure<FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = MaxUploadBytes;
             });
 
             builder.Services.ConfigureHttpJsonOptions(options =>
