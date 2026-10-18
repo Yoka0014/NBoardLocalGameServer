@@ -7,7 +7,8 @@ using System.Threading.Tasks;
 
 namespace NBoardLocalGameServer
 {
-    internal record PlayerConfig(string Path, string Arguments, string WorkDir, IReadOnlyList<string> InitialCommands)
+    /// <param name="Name">任意. 統計やログに使う表示名. 省略時はエンジン自身が申告する名前を使う.</param>
+    internal record PlayerConfig(string Path, string Arguments, string WorkDir, IReadOnlyList<string> InitialCommands, string? Name = null)
     {
         public static PlayerConfig? Load(string path) => JsonSerializer.Deserialize<PlayerConfig>(File.ReadAllText(path));
         public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));

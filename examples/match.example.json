@@ -1,0 +1,14 @@
+{
+  "MatchMode": "Synchro",
+  "SwapPlayer": true,
+  "UseSamePositionWhenSwapPlayer": true,
+  "OpeningBookPath": "data/books/xot-500.book",
+  "ShuffleBook": false,
+  "Matches": 10,
+  "Sessions": 4,
+  "TimeControl": "00:05:00/00:00:10/00:00:00",
+  "First": { "Path": "DummyEngine/bin/Debug/net10.0/DummyEngine.exe", "Arguments": "Alpha", "WorkDir": "", "InitialCommands": [], "Name": "Alpha" },
+  "Second": { "Path": "DummyEngine/bin/Debug/net10.0/DummyEngine.exe", "Arguments": "Beta", "WorkDir": "", "InitialCommands": [], "Name": "Beta" },
+  "Stats": "out/stats.json",
+  "Record": "out/record.ggf"
+}

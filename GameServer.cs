@@ -61,6 +61,36 @@ namespace NBoardLocalGameServer
         /// </summary>
         public bool ShuffleBook { get; set; } = false;
 
+        // 以下はすべて任意. 指定するとコマンドライン引数なしでマッチ全体をこのファイル1つで記述できる.
+        // 同じ項目をコマンドライン引数でも指定した場合は, コマンドライン引数が優先される.
+
+        /// <summary>マッチ数 (--matches).</summary>
+        public int? Matches { get; set; }
+
+        /// <summary>同時対局数 (--sessions).</summary>
+        public int? Sessions { get; set; }
+
+        /// <summary>両プレイヤー共通の持ち時間 (--time). "ini/inc/extra"形式.</summary>
+        public string? TimeControl { get; set; }
+
+        /// <summary>1stプレイヤーのみの持ち時間 (--time-first).</summary>
+        public string? TimeControlFirst { get; set; }
+
+        /// <summary>2ndプレイヤーのみの持ち時間 (--time-second).</summary>
+        public string? TimeControlSecond { get; set; }
+
+        /// <summary>1stプレイヤー (--first). player設定JSONのパス, またはインラインのPlayerConfig.</summary>
+        public PlayerSpec? First { get; set; }
+
+        /// <summary>2ndプレイヤー (--second).</summary>
+        public PlayerSpec? Second { get; set; }
+
+        /// <summary>統計JSONの出力先 (--stats).</summary>
+        public string? Stats { get; set; }
+
+        /// <summary>GGF棋譜の出力先 (--record).</summary>
+        public string? Record { get; set; }
+
         public static GameServerConfig? Load(string path) => JsonSerializer.Deserialize<GameServerConfig>(File.ReadAllText(path));
         public void Save(string path) => File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
     }
@@ -74,7 +104,7 @@ namespace NBoardLocalGameServer
         readonly GameServerConfig _config = config;
         readonly PlayerConfig[] _playerConfigs = [playerConfig0, playerConfig1];
         readonly GameClockConfig?[] _clockConfigs = [player0Clock, player1Clock];
-        readonly string?[] _displayNameOverrides = [player0DisplayName, player1DisplayName];
+        readonly string?[] _displayNameOverrides = [player0DisplayName ?? playerConfig0.Name, player1DisplayName ?? playerConfig1.Name];
         readonly string _gameRecordPath = gameRecordPath;
         readonly string _playerStatsPath = playerStatsPath;
         readonly int _maxSessions = maxSessions;
